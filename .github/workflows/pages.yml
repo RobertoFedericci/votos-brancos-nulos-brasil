@@ -1,0 +1,33 @@
+name: Publicar no GitHub Pages
+
+# A página é estática e já versionada em site/; o workflow só a envia.
+# Existe porque o Pages por branch aceita apenas a raiz ou /docs, e a
+# pasta site/ descreve melhor o que ela contém.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
