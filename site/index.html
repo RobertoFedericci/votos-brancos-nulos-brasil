@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Votos brancos, nulos e nulos técnicos — seis estados brasileiros</title>
+<meta name="description" content="Estudo municipal do voto branco, nulo e nulo técnico em São Paulo, Ceará, Bahia, Pernambuco, Pará e Maranhão nas eleições gerais de 2018 e 2022. Fontes: TSE e IBGE.">
+<meta name="author" content="Roberto Federicci">
+<style>
+:root{
+  color-scheme:light dark;
+  --plane:#f9f9f7; --surface:#fcfcfb;
+  --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --ring:rgba(11,11,11,.10);
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --inativo:#dcdcd8; --acento:#2a78d6;
+}
+@media (prefers-color-scheme:dark){
+  :root:where(:not([data-theme="light"])){
+    --plane:#0d0d0d; --surface:#1a1a19;
+    --ink:#fff; --ink2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --ring:rgba(255,255,255,.10);
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+    --inativo:#2c2c2a; --acento:#3987e5;
+  }
+}
+:root[data-theme="dark"]{
+  --plane:#0d0d0d; --surface:#1a1a19;
+  --ink:#fff; --ink2:#c3c2b7; --muted:#898781;
+  --grid:#2c2c2a; --axis:#383835; --ring:rgba(255,255,255,.10);
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  --inativo:#2c2c2a; --acento:#3987e5;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--plane);
+  color:var(--ink);line-height:1.55;-webkit-text-size-adjust:100%}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px 72px}
+
+header{padding:44px 0 28px;border-bottom:1px solid var(--grid);margin-bottom:32px}
+header h1{font-size:clamp(23px,3.4vw,33px);font-weight:660;letter-spacing:-.02em;line-height:1.2}
+header .sub{color:var(--ink2);font-size:15.5px;margin-top:11px;max-width:70ch}
+header .assinatura{margin-top:18px;font-size:12.5px;color:var(--muted);
+  display:flex;flex-wrap:wrap;gap:7px 15px;align-items:center}
+header .assinatura b{color:var(--ink2);font-weight:600}
+
+h2{font-size:19px;font-weight:640;letter-spacing:-.01em;margin-bottom:5px}
+h3{font-size:15px;font-weight:620;margin-bottom:4px}
+.nota{font-size:13px;color:var(--ink2);max-width:78ch}
+.nota+.nota{margin-top:8px}
+.secao{margin-bottom:38px}
+.secao>.nota{margin-bottom:18px}
+
+/* ---- mapa seletor ---- */
+.mapa-bloco{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);
+  gap:30px;align-items:start}
+@media(max-width:760px){.mapa-bloco{grid-template-columns:1fr}}
+.mapa svg{width:100%;height:auto;display:block}
+.mapa path{stroke:var(--surface);stroke-width:2.2;fill:var(--inativo);
+  transition:fill .13s ease}
+.mapa path.ativo{fill:var(--s1);cursor:pointer}
+.mapa path.ativo:hover{fill:var(--s2)}
+.mapa path.sel{fill:var(--s2)}
+.mapa-legenda{font-size:12px;color:var(--muted);margin-top:10px}
+
+.lista-uf{display:flex;flex-direction:column;gap:7px}
+.lista-uf button{display:flex;justify-content:space-between;align-items:center;
+  gap:14px;width:100%;text-align:left;padding:11px 15px;border-radius:9px;
+  border:1px solid var(--ring);background:var(--surface);color:var(--ink);
+  font:inherit;font-size:14px;cursor:pointer;transition:border-color .13s}
+.lista-uf button:hover{border-color:var(--axis)}
+.lista-uf button[aria-current="true"]{border-color:var(--s2);border-width:1.5px}
+.lista-uf .nm{font-weight:590}
+.lista-uf .vl{font-variant-numeric:tabular-nums;color:var(--ink2);font-size:13px}
+
+/* ---- abas ---- */
+.abas{display:flex;gap:3px;flex-wrap:wrap;border-bottom:1px solid var(--grid);
+  margin-bottom:24px}
+.abas button{padding:10px 15px;border:0;background:none;color:var(--ink2);
+  font:inherit;font-size:13.5px;font-weight:560;cursor:pointer;border-radius:7px 7px 0 0;
+  border-bottom:2px solid transparent;margin-bottom:-1px}
+.abas button:hover{color:var(--ink)}
+.abas button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--s2)}
+
+/* ---- filtros ---- */
+.filtros{display:flex;flex-wrap:wrap;gap:9px 16px;align-items:center;
+  margin-bottom:22px;padding:13px 15px;background:var(--surface);
+  border:1px solid var(--ring);border-radius:10px}
+.filtros label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:7px}
+.filtros select{font:inherit;font-size:13px;padding:5px 8px;border-radius:6px;
+  border:1px solid var(--ring);background:var(--plane);color:var(--ink)}
+
+/* ---- KPIs ---- */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));
+  gap:12px;margin-bottom:24px}
+.kpi{background:var(--surface);border:1px solid var(--ring);border-radius:10px;
+  padding:14px 16px}
+.kpi .v{font-size:25px;font-weight:660;letter-spacing:-.02em;line-height:1.15}
+.kpi .l{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.35}
+.kpi .d{font-size:11.5px;margin-top:6px;font-variant-numeric:tabular-nums;color:var(--ink2)}
+.kpi .marca{display:inline-block;width:9px;height:9px;border-radius:2px;
+  margin-right:6px;vertical-align:1px}
+
+/* ---- cartões de gráfico ---- */
+.card{background:var(--surface);border:1px solid var(--ring);border-radius:11px;
+  padding:19px 20px;margin-bottom:20px}
+.card>h3{margin-bottom:3px}
+.card>.nota{margin-bottom:15px}
+.legenda{display:flex;flex-wrap:wrap;gap:7px 17px;margin:0 0 13px;font-size:12.5px;
+  color:var(--ink2)}
+.legenda span{display:flex;align-items:center;gap:6px}
+.legenda i{width:11px;height:11px;border-radius:2.5px;display:block}
+.plot{width:100%;overflow-x:auto}
+.plot svg{display:block}
+text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+.tick{font-size:11px;fill:var(--muted)}
+.rotulo{font-size:11px;fill:var(--ink2);font-variant-numeric:tabular-nums}
+.linha-grade{stroke:var(--grid);stroke-width:1}
+.eixo{stroke:var(--axis);stroke-width:1}
+
+/* ---- tabela ---- */
+.tabela-envolve{overflow-x:auto;border:1px solid var(--ring);border-radius:10px;
+  background:var(--surface)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 12px;text-align:right;white-space:nowrap;
+  border-bottom:1px solid var(--grid)}
+th:first-child,td:first-child{text-align:left;white-space:normal;min-width:150px}
+thead th{font-size:11.5px;color:var(--muted);font-weight:600;position:sticky;top:0;
+  background:var(--surface);cursor:pointer;user-select:none}
+thead th:hover{color:var(--ink)}
+thead th[aria-sort]{color:var(--ink)}
+tbody td{font-variant-numeric:tabular-nums;color:var(--ink2)}
+tbody td:first-child{color:var(--ink)}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--plane)}
+.busca{font:inherit;font-size:13px;padding:7px 11px;border-radius:7px;
+  border:1px solid var(--ring);background:var(--surface);color:var(--ink);
+  width:230px;margin-bottom:12px}
+
+/* ---- tooltip ---- */
+#tt{position:fixed;pointer-events:none;z-index:60;background:var(--surface);
+  border:1px solid var(--ring);border-radius:8px;padding:9px 12px;font-size:12.5px;
+  box-shadow:0 6px 22px rgba(0,0,0,.16);opacity:0;transition:opacity .1s;
+  max-width:265px;line-height:1.5}
+#tt b{display:block;margin-bottom:3px;color:var(--ink);font-size:13px}
+#tt .lin{display:flex;justify-content:space-between;gap:16px;color:var(--ink2);
+  font-variant-numeric:tabular-nums}
+#tt i{width:9px;height:9px;border-radius:2px;display:inline-block;margin-right:5px}
+
+.aviso{border-left:2.5px solid var(--s4);background:var(--surface);
+  border-radius:0 8px 8px 0;padding:12px 16px;font-size:13px;color:var(--ink2);
+  margin-bottom:20px}
+.aviso b{color:var(--ink)}
+.oculto{display:none}
+.carregando{padding:44px;text-align:center;color:var(--muted);font-size:14px}
+
+footer{border-top:1px solid var(--grid);margin-top:44px;padding-top:22px;
+  font-size:12.5px;color:var(--muted);line-height:1.7}
+footer a{color:var(--ink2)}
+.fontes{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));
+  gap:16px;margin-top:8px}
+.fontes div{background:var(--surface);border:1px solid var(--ring);
+  border-radius:9px;padding:13px 15px;font-size:12.5px;color:var(--ink2)}
+.fontes b{display:block;color:var(--ink);font-size:13px;margin-bottom:3px}
+</style>
+</head>
+<body>
+<div id="tt" role="tooltip"></div>
+
+<div class="wrap">
+<header>
+  <h1>Votos brancos, nulos e nulos técnicos</h1>
+  <p class="sub">Como o não-voto se distribuiu pelos municípios de São Paulo, Ceará,
+  Bahia, Pernambuco, Pará e Maranhão nas eleições gerais de 2018 e 2022.
+  1.792 municípios, dois pleitos, dados oficiais do TSE.</p>
+  <p class="assinatura">
+    <b>Estudo de Roberto Federicci</b>
+    <span>·</span><span>Dados: TSE e IBGE</span>
+    <span>·</span><span id="data-atualizacao"></span>
+  </p>
+</header>
+
+<section class="secao">
+  <h2>Escolha um estado</h2>
+  <p class="nota">Seis estados estão no recorte deste estudo. Os demais aparecem
+  esmaecidos e não são clicáveis.</p>
+  <div class="mapa-bloco">
+    <div>
+      <div class="mapa" id="mapa"></div>
+      <p class="mapa-legenda">Malha territorial do IBGE, simplificada.</p>
+    </div>
+    <div>
+      <div class="lista-uf" id="lista-uf"></div>
+      <p class="nota" style="margin-top:13px">O percentual ao lado de cada estado é
+      a soma de brancos e nulos sobre os votos depositados para
+      <b>Presidente</b> em 2022.</p>
+    </div>
+  </div>
+</section>
+
+<div id="conteudo" class="oculto">
+  <div class="abas" role="tablist" id="abas"></div>
+  <div class="filtros" id="filtros">
+    <label>Cargo
+      <select id="f-cargo"></select>
+    </label>
+    <label>Ano
+      <select id="f-ano"></select>
+    </label>
+    <span class="nota" id="f-nota" style="font-size:11.5px"></span>
+  </div>
+  <div id="painel"></div>
+</div>
+<div id="carregando" class="carregando">Carregando dados…</div>
+
+<footer>
+  <p><b style="color:var(--ink2)">Estudo de Roberto Federicci.</b>
+  Trabalho independente, sem vínculo com partido, campanha ou candidatura.
+  Código e dados abertos no
+  <a href="https://github.com/RobertoFedericci/votos-brancos-nulos-brasil">repositório</a>.</p>
+  <div class="fontes">
+    <div><b>TSE — Detalhe da votação por município e zona</b>
+      Eleições gerais de 2018 e 2022, 1º turno. Base oficial do Portal de Dados
+      Abertos do Tribunal Superior Eleitoral.</div>
+    <div><b>TSE — Perfil do eleitorado 2022</b>
+      Sexo, faixa etária e grau de instrução do eleitorado, por município.</div>
+    <div><b>IBGE — Censo Demográfico 2022</b>
+      População, densidade demográfica e taxa de alfabetização das pessoas de
+      15 anos ou mais (tabelas 4714 e 9543).</div>
+    <div><b>IBGE — PIB dos Municípios e CEMPRE</b>
+      PIB per capita municipal (2021) e salário médio mensal em salários
+      mínimos (2021), tabelas 5938 e 1685.</div>
+  </div>
+</footer>
+</div>
+
+<script>
+"use strict";
+const CORES={brancos:"var(--s1)",nulos:"var(--s2)",tecnicos:"var(--s3)",abstencao:"var(--s4)"};
+const NOMES={brancos:"Brancos",nulos:"Nulos",tecnicos:"Nulos técnicos",abstencao:"Abstenção"};
+const UF_ORDEM=["SP","BA","PE","CE","PA","MA"];
+const SVG="http://www.w3.org/2000/svg";
+
+const estado={resumo:null,mapa:null,uf:null,dados:{},aba:"panorama",
+              cargo:"Presidente",ano:"2022"};
+
+/* ---------- utilidades ---------- */
+const fmt=n=>n==null?"—":n.toLocaleString("pt-BR");
+const pc=(n,d,c=1)=>d?(100*n/d).toFixed(c)+"%":"—";
+const num=(n,c=1)=>n==null?"—":n.toLocaleString("pt-BR",
+  {minimumFractionDigits:c,maximumFractionDigits:c});
+const el=(t,a={},...f)=>{const e=document.createElement(t);
+  for(const k in a){if(k==="html")e.innerHTML=a[k];else if(k==="txt")e.textContent=a[k];
+  else e.setAttribute(k,a[k]);}f.flat().forEach(c=>c&&e.append(c));return e;};
+const svgEl=(t,a={})=>{const e=document.createElementNS(SVG,t);
+  for(const k in a)e.setAttribute(k,a[k]);return e;};
+
+/* Números do município/estado para um cargo+ano.
+   d = [votos, brancos, nulos, tecnicos, abstencoes, aptos, comparecimento] */
+function extrai(d){
+  if(!d)return null;
+  const [votos,brancos,nulos,tec,abst,aptos,comp]=d;
+  return {votos,brancos,nulos,tecnicos:tec,abstencoes:abst,aptos,comparecimento:comp,
+    total_nulos:nulos+tec,
+    // Denominador dos brancos/nulos: votos depositados na urna para o cargo.
+    // Em 2018 o Senado teve dois votos por eleitor, e votos já reflete isso.
+    p_brancos:100*brancos/votos, p_nulos:100*nulos/votos,
+    p_tecnicos:100*tec/votos, p_bn:100*(brancos+nulos+tec)/votos,
+    // Abstenção corre sobre o eleitorado apto, não sobre os votos.
+    p_abstencao:100*abst/aptos};
+}
+function totaisUF(uf,cargo,ano){
+  const t=(estado.resumo.ufs[uf].totais[cargo]||{})[ano];
+  if(!t)return null;
+  return extrai([t.votos,t.brancos,t.nulos,t.nulos_tecnicos,
+                 t.abstencoes,t.aptos,t.comparecimento]);
+}
+
+/* ---------- tooltip ---------- */
+const tt=document.getElementById("tt");
+function mostraTT(ev,titulo,linhas){
+  tt.innerHTML="";
+  tt.append(el("b",{txt:titulo}));
+  linhas.forEach(([r,v,cor])=>{
+    const e=el("div",{class:"lin"});
+    e.append(el("span",{html:(cor?`<i style="background:${cor}"></i>`:"")+r}),
+             el("span",{txt:v}));
+    tt.append(e);
+  });
+  tt.style.opacity="1";
+  posicionaTT(ev);
+}
+function posicionaTT(ev){
+  const r=tt.getBoundingClientRect();
+  let x=ev.clientX+14,y=ev.clientY+14;
+  if(x+r.width>innerWidth-8)x=ev.clientX-r.width-14;
+  if(y+r.height>innerHeight-8)y=ev.clientY-r.height-14;
+  tt.style.left=Math.max(8,x)+"px";tt.style.top=Math.max(8,y)+"px";
+}
+const escondeTT=()=>{tt.style.opacity="0";};
+function ligaTT(no,titulo,linhas){
+  no.addEventListener("mouseenter",e=>mostraTT(e,titulo,linhas));
+  no.addEventListener("mousemove",posicionaTT);
+  no.addEventListener("mouseleave",escondeTT);
+}
+
+/* ---------- mapa ---------- */
+function montaMapa(){
+  const m=estado.mapa,alvo=estado.resumo.cod_uf;
+  const porCod={};for(const uf in alvo)porCod[alvo[uf]]=uf;
+  const s=svgEl("svg",{viewBox:`0 0 ${m.w} ${m.h}`,role:"img",
+    "aria-label":"Mapa do Brasil; seis estados selecionáveis"});
+  for(const cod in m.paths){
+    const uf=porCod[cod];
+    const p=svgEl("path",{d:m.paths[cod]});
+    if(uf){
+      p.classList.add("ativo");
+      p.setAttribute("role","button");p.setAttribute("tabindex","0");
+      p.setAttribute("aria-label",estado.resumo.ufs[uf].nome);
+      p.dataset.uf=uf;
+      p.addEventListener("click",()=>selecionaUF(uf));
+      p.addEventListener("keydown",e=>{
+        if(e.key==="Enter"||e.key===" "){e.preventDefault();selecionaUF(uf);}});
+      const t=totaisUF(uf,"Presidente","2022");
+      ligaTT(p,estado.resumo.ufs[uf].nome,[
+        ["Brancos + nulos, Presidente 2022",num(t.p_bn)+"%"],
+        ["Municípios",fmt(estado.resumo.ufs[uf].municipios)],
+        ["Clique para abrir",""]]);
+    }
+    s.append(p);
+  }
+  const cx=document.getElementById("mapa");
+  cx.innerHTML="";cx.append(s);
+}
+function montaLista(){
+  const c=document.getElementById("lista-uf");c.innerHTML="";
+  UF_ORDEM.forEach(uf=>{
+    const t=totaisUF(uf,"Presidente","2022");
+    const b=el("button",{type:"button"},
+      el("span",{class:"nm",txt:estado.resumo.ufs[uf].nome}),
+      el("span",{class:"vl",txt:num(t.p_bn)+"% · "+
+        fmt(estado.resumo.ufs[uf].municipios)+" municípios"}));
+    b.dataset.uf=uf;
+    b.addEventListener("click",()=>selecionaUF(uf));
+    c.append(b);
+  });
+}
+function marcaSelecao(){
+  document.querySelectorAll("#mapa path").forEach(p=>
+    p.classList.toggle("sel",p.dataset.uf===estado.uf));
+  document.querySelectorAll("#lista-uf button").forEach(b=>
+    b.setAttribute("aria-current",String(b.dataset.uf===estado.uf)));
+}
+
+/* ---------- gráficos ---------- */
+/* Barras horizontais agrupadas. itens=[{rotulo, valores:[{chave,v}]}] */
+function barrasH(itens,chaves,{sufixo="%",largura=680,alturaBarra=13,
+                               espaco=5,grupo=13,margemE=132}={}){
+  const n=chaves.length;
+  const alturaItem=n*alturaBarra+(n-1)*espaco+grupo;
+  const alt=itens.length*alturaItem+34;
+  const larg=largura,margemD=54;
+  const plot=larg-margemE-margemD;
+  const max=Math.max(...itens.flatMap(i=>i.valores.map(v=>v.v)),0.001);
+  const esc=v=>v/(max*1.08)*plot;
+  const s=svgEl("svg",{viewBox:`0 0 ${larg} ${alt}`,width:larg,
+    style:"max-width:100%;height:auto"});
+
+  // Grade vertical recessiva, uma linha por marca do eixo.
+  const passo=escolhePasso(max*1.08);
+  for(let g=0;g<=max*1.08;g+=passo){
+    const x=margemE+esc(g);
+    s.append(svgEl("line",{x1:x,x2:x,y1:0,y2:alt-22,class:"linha-grade"}));
+    const t=svgEl("text",{x:x,y:alt-7,class:"tick","text-anchor":"middle"});
+    t.textContent=num(g,passo<1?1:0)+sufixo;s.append(t);
+  }
+  s.append(svgEl("line",{x1:margemE,x2:margemE,y1:0,y2:alt-22,class:"eixo"}));
+
+  itens.forEach((it,i)=>{
+    const y0=i*alturaItem+grupo/2;
+    const rot=svgEl("text",{x:margemE-11,y:y0+(n*alturaBarra+(n-1)*espaco)/2+4,
+      class:"rotulo","text-anchor":"end"});
+    rot.textContent=it.rotulo;s.append(rot);
+    it.valores.forEach((v,j)=>{
+      const y=y0+j*(alturaBarra+espaco);
+      const w=Math.max(esc(v.v),v.v>0?2:0);
+      const r=svgEl("rect",{x:margemE,y:y,width:w,height:alturaBarra,
+        rx:3.5,fill:CORES[v.chave]});
+      ligaTT(r,it.rotulo,[[NOMES[v.chave],num(v.v)+sufixo,CORES[v.chave]],
+        ...(v.extra||[])]);
+      s.append(r);
+      // Rótulo direto no fim da barra: alívio para os matizes de baixo
+      // contraste no modo claro.
+      const lb=svgEl("text",{x:margemE+w+6,y:y+alturaBarra-2.5,class:"rotulo"});
+      lb.textContent=num(v.v)+sufixo;s.append(lb);
+    });
+  });
+  return s;
+}
+function escolhePasso(max){
+  const bruto=max/5,exp=Math.pow(10,Math.floor(Math.log10(bruto)));
+  const n=bruto/exp;
+  return (n<1.5?1:n<3?2:n<7?5:10)*exp;
+}
+
+/* Dispersão: um município por ponto. Série única -> um só matiz. */
+function dispersao(pontos,{rotuloX,rotuloY,largura=680,altura=380}={}){
+  const mE=58,mD=18,mT=14,mB=46;
+  const pw=largura-mE-mD,ph=altura-mT-mB;
+  const xs=pontos.map(p=>p.x),ys=pontos.map(p=>p.y);
+  const x0=Math.min(...xs),x1=Math.max(...xs);
+  const y0=Math.min(...ys),y1=Math.max(...ys);
+  const ex=v=>mE+(v-x0)/((x1-x0)||1)*pw;
+  const ey=v=>mT+ph-(v-y0)/((y1-y0)||1)*ph;
+  const s=svgEl("svg",{viewBox:`0 0 ${largura} ${altura}`,width:largura,
+    style:"max-width:100%;height:auto"});
+
+  const px=escolhePasso(y1-y0);
+  for(let g=Math.ceil(y0/px)*px;g<=y1;g+=px){
+    s.append(svgEl("line",{x1:mE,x2:mE+pw,y1:ey(g),y2:ey(g),class:"linha-grade"}));
+    const t=svgEl("text",{x:mE-9,y:ey(g)+4,class:"tick","text-anchor":"end"});
+    t.textContent=num(g,0)+"%";s.append(t);
+  }
+  const pxx=escolhePasso(x1-x0);
+  for(let g=Math.ceil(x0/pxx)*pxx;g<=x1;g+=pxx){
+    const t=svgEl("text",{x:ex(g),y:altura-24,class:"tick","text-anchor":"middle"});
+    t.textContent=num(g,pxx<1?1:0);s.append(t);
+  }
+  s.append(svgEl("line",{x1:mE,x2:mE+pw,y1:mT+ph,y2:mT+ph,class:"eixo"}));
+
+  // Raio proporcional ao eleitorado, com piso de 8px de área tocável.
+  const maxEl=Math.max(...pontos.map(p=>p.peso||1));
+  pontos.forEach(p=>{
+    const r=4+6*Math.sqrt((p.peso||1)/maxEl);
+    const c=svgEl("circle",{cx:ex(p.x),cy:ey(p.y),r:r,fill:"var(--s1)",
+      "fill-opacity":.55,stroke:"var(--surface)","stroke-width":1.5});
+    ligaTT(c,p.nome,[[rotuloX,num(p.x,1)],[rotuloY,num(p.y,1)+"%"],
+      ["Eleitorado",fmt(p.peso)]]);
+    s.append(c);
+  });
+
+  // Reta de mínimos quadrados — só orienta a leitura, não é modelo.
+  const r=pearson(xs,ys);
+  const mx=media(xs),my=media(ys);
+  const b=xs.reduce((a,x,i)=>a+(x-mx)*(ys[i]-my),0)/
+          (xs.reduce((a,x)=>a+(x-mx)**2,0)||1);
+  const a=my-b*mx;
+  s.append(svgEl("line",{x1:ex(x0),y1:ey(a+b*x0),x2:ex(x1),y2:ey(a+b*x1),
+    stroke:"var(--ink2)","stroke-width":2,"stroke-opacity":.5}));
+
+  const lx=svgEl("text",{x:mE+pw/2,y:altura-5,class:"tick","text-anchor":"middle"});
+  lx.textContent=rotuloX;s.append(lx);
+  const ly=svgEl("text",{x:13,y:mT+ph/2,class:"tick","text-anchor":"middle",
+    transform:`rotate(-90 13 ${mT+ph/2})`});
+  ly.textContent=rotuloY;s.append(ly);
+  return {svg:s,r};
+}
+const media=a=>a.reduce((x,y)=>x+y,0)/a.length;
+function pearson(x,y){
+  const mx=media(x),my=media(y);
+  let n=0,dx=0,dy=0;
+  for(let i=0;i<x.length;i++){n+=(x[i]-mx)*(y[i]-my);dx+=(x[i]-mx)**2;dy+=(y[i]-my)**2;}
+  return dx&&dy?n/Math.sqrt(dx*dy):0;
+}
+
+function legenda(chaves){
+  return el("div",{class:"legenda"},chaves.map(k=>
+    el("span",{},el("i",{style:`background:${CORES[k]}`}),
+      el("span",{txt:NOMES[k]}))));
+}
+
+/* ---------- abas ---------- */
+const ABAS=[
+  {id:"panorama",nome:"Panorama do estado"},
+  {id:"municipios",nome:"Municípios"},
+  {id:"comparacao",nome:"Os seis estados"},
+  {id:"perfil",nome:"Perfil do eleitor"},
+  {id:"metodo",nome:"Metodologia"},
+];
+function montaAbas(){
+  const c=document.getElementById("abas");c.innerHTML="";
+  ABAS.forEach(a=>{
+    const b=el("button",{type:"button",role:"tab",txt:a.nome});
+    b.setAttribute("aria-selected",String(a.id===estado.aba));
+    b.addEventListener("click",()=>{estado.aba=a.id;montaAbas();renderiza();gravaHash();});
+    c.append(b);
+  });
+}
+function montaFiltros(){
+  const fc=document.getElementById("f-cargo"),fa=document.getElementById("f-ano");
+  fc.innerHTML="";fa.innerHTML="";
+  estado.resumo.cargos.forEach(c=>{
+    const o=el("option",{value:c,txt:c});
+    if(c===estado.cargo)o.selected=true;fc.append(o);});
+  estado.resumo.anos.forEach(a=>{
+    const o=el("option",{value:String(a),txt:String(a)});
+    if(String(a)===estado.ano)o.selected=true;fa.append(o);});
+  fc.onchange=e=>{estado.cargo=e.target.value;renderiza();};
+  fa.onchange=e=>{estado.ano=e.target.value;renderiza();};
+  document.getElementById("filtros").style.display=
+    (estado.aba==="metodo")?"none":"flex";
+  document.getElementById("f-nota").textContent=
+    estado.cargo==="Senador"
+      ?"Em 2018 o Senado renovou duas vagas: cada eleitor depositou dois votos."
+      :"";
+}
+
+/* ---------- painéis ---------- */
+function painelPanorama(){
+  const d=estado.dados[estado.uf];
+  const f=document.createDocumentFragment();
+  const at=totaisUF(estado.uf,estado.cargo,estado.ano);
+  if(!at){
+    f.append(el("div",{class:"aviso",html:
+      `<b>Sem dados.</b> Não há registro de ${estado.cargo} em ${estado.ano} neste estado.`}));
+    return f;
+  }
+  const outro=estado.ano==="2022"?"2018":"2022";
+  const ant=totaisUF(estado.uf,estado.cargo,outro);
+
+  const delta=(a,b)=>{
+    if(b==null)return"";
+    const d2=a-b;
+    return `${d2>=0?"+":"−"}${num(Math.abs(d2))} p.p. vs ${outro}`;
+  };
+  const kpi=(chave,valor,label,antV)=>el("div",{class:"kpi"},
+    el("div",{class:"v",html:`<span class="marca" style="background:${CORES[chave]}"></span>${num(valor)}%`}),
+    el("div",{class:"l",txt:label}),
+    el("div",{class:"d",txt:delta(valor,antV)}));
+
+  f.append(el("div",{class:"kpis"},
+    kpi("brancos",at.p_brancos,"Votos em branco, sobre os votos depositados",
+        ant&&ant.p_brancos),
+    kpi("nulos",at.p_nulos,"Votos nulos (anulados pelo eleitor)",ant&&ant.p_nulos),
+    kpi("tecnicos",at.p_tecnicos,"Nulos técnicos (decisão da Justiça Eleitoral)",
+        ant&&ant.p_tecnicos),
+    kpi("abstencao",at.p_abstencao,"Abstenção, sobre o eleitorado apto",
+        ant&&ant.p_abstencao)));
+
+  if(estado.ano==="2018"){
+    f.append(el("div",{class:"aviso",html:
+      "<b>Nulo técnico em 2018.</b> A base do TSE de 2018 não destaca essa "+
+      "categoria: o campo existe, mas vem zerado em todos os municípios. "+
+      "O que em 2022 é classificado como nulo técnico está, em 2018, "+
+      "embutido no nulo comum. A comparação direta dessa linha entre os "+
+      "dois anos não é válida."}));
+  }
+
+  const c1=el("div",{class:"card"},
+    el("h3",{txt:`Volume absoluto — ${estado.cargo}, ${estado.ano}`}),
+    el("p",{class:"nota",txt:
+      "Número de votos, em milhares. A abstenção não entra aqui porque "+
+      "corre sobre outro denominador."}));
+  const vals=[["brancos",at.brancos],["nulos",at.nulos],["tecnicos",at.tecnicos]];
+  c1.append(legenda(["brancos","nulos","tecnicos"]));
+  const p1=el("div",{class:"plot"});
+  p1.append(barrasH(vals.map(([k,v])=>({rotulo:NOMES[k],
+    valores:[{chave:k,v:v/1000}]})),["v"],
+    {sufixo:" mil",margemE:112,alturaBarra:19}));
+  c1.append(p1);
+  f.append(c1);
+
+  // Evolução entre os dois pleitos, em percentual.
+  const c2=el("div",{class:"card"},
+    el("h3",{txt:`2018 e 2022 lado a lado — ${estado.cargo}`}),
+    el("p",{class:"nota",txt:
+      "Percentual sobre os votos depositados na urna para o cargo, o que "+
+      "neutraliza a diferença de tamanho entre os dois pleitos."}));
+  c2.append(legenda(["brancos","nulos","tecnicos"]));
+  const linhas=["2018","2022"].map(a=>{
+    const t=totaisUF(estado.uf,estado.cargo,a);
+    return t?{rotulo:a,valores:[{chave:"brancos",v:t.p_brancos},
+      {chave:"nulos",v:t.p_nulos},{chave:"tecnicos",v:t.p_tecnicos}]}:null;
+  }).filter(Boolean);
+  const p2=el("div",{class:"plot"});
+  p2.append(barrasH(linhas,["brancos","nulos","tecnicos"],{margemE:52}));
+  c2.append(p2);
+  f.append(c2);
+
+  // Extremos municipais — onde o fenômeno se concentra.
+  const lista=d.municipios.map(m=>{
+    const r=extrai((m.d[estado.cargo]||{})[estado.ano]);
+    return r&&r.votos>0?{nome:m.n,v:r.p_bn,el:m.el,r}:null;
+  }).filter(Boolean).sort((a,b)=>b.v-a.v);
+  const c3=el("div",{class:"card"},
+    el("h3",{txt:"Os dez municípios com maior taxa"}),
+    el("p",{class:"nota",txt:
+      "Brancos + nulos + nulos técnicos sobre os votos depositados. "+
+      "Municípios pequenos oscilam mais: a lista completa está na aba Municípios."}));
+  const p3=el("div",{class:"plot"});
+  p3.append(barrasH(lista.slice(0,10).map(m=>({rotulo:m.nome,
+    valores:[{chave:"nulos",v:m.v,extra:[["Eleitorado",fmt(m.el)]]}]})),["v"],
+    {margemE:158,alturaBarra:15}));
+  c3.append(p3);
+  f.append(c3);
+  return f;
+}
+
+function painelMunicipios(){
+  const d=estado.dados[estado.uf];
+  const f=document.createDocumentFragment();
+  f.append(el("p",{class:"nota",style:"margin-bottom:14px",txt:
+    `Todos os ${d.municipios.length} municípios de ${d.nome}, para `+
+    `${estado.cargo} em ${estado.ano}. Clique num cabeçalho para ordenar.`}));
+  const busca=el("input",{class:"busca",type:"search",
+    placeholder:"Filtrar por município…"});
+  f.append(busca);
+
+  const cols=[
+    ["n","Município","t"],["el","Eleitorado","n"],
+    ["p_brancos","Brancos %","p"],["p_nulos","Nulos %","p"],
+    ["p_tecnicos","Nulos técn. %","p"],["p_bn","Soma %","p"],
+    ["p_abstencao","Abstenção %","p"],["alf","Alfabetização %","p"],
+  ];
+  let ordem="p_bn",asc=false,filtro="";
+  const env=el("div",{class:"tabela-envolve"});
+  const tab=el("table");env.append(tab);f.append(env);
+
+  function linhas(){
+    return d.municipios.map(m=>{
+      const r=extrai((m.d[estado.cargo]||{})[estado.ano]);
+      if(!r||!r.votos)return null;
+      return {n:m.n,el:m.el,alf:m.alf,p_brancos:r.p_brancos,p_nulos:r.p_nulos,
+        p_tecnicos:r.p_tecnicos,p_bn:r.p_bn,p_abstencao:r.p_abstencao};
+    }).filter(Boolean)
+      .filter(r=>!filtro||r.n.toLowerCase().includes(filtro))
+      .sort((a,b)=>{const x=a[ordem],y=b[ordem];
+        return (typeof x==="string"?x.localeCompare(y):(x||0)-(y||0))*(asc?1:-1);});
+  }
+  function desenha(){
+    tab.innerHTML="";
+    const thead=el("thead"),tr=el("tr");
+    cols.forEach(([k,rot])=>{
+      const th=el("th",{txt:rot});
+      if(k===ordem)th.setAttribute("aria-sort",asc?"ascending":"descending");
+      th.addEventListener("click",()=>{
+        if(ordem===k)asc=!asc;else{ordem=k;asc=(k==="n");}
+        desenha();});
+      tr.append(th);});
+    thead.append(tr);tab.append(thead);
+    const tb=el("tbody");
+    linhas().forEach(r=>{
+      const t=el("tr");
+      cols.forEach(([k,,tipo])=>t.append(el("td",{txt:
+        tipo==="t"?r[k]:tipo==="n"?fmt(r[k]):(r[k]==null?"—":num(r[k]))})));
+      tb.append(t);});
+    tab.append(tb);
+  }
+  busca.addEventListener("input",e=>{filtro=e.target.value.toLowerCase().trim();desenha();});
+  desenha();
+  return f;
+}
+
+function painelComparacao(){
+  const f=document.createDocumentFragment();
+  f.append(el("p",{class:"nota",style:"margin-bottom:16px",txt:
+    `Os seis estados do recorte, para ${estado.cargo} em ${estado.ano}. `+
+    "Percentual sobre os votos depositados na urna para o cargo."}));
+
+  const itens=UF_ORDEM.map(uf=>{
+    const t=totaisUF(uf,estado.cargo,estado.ano);
+    return t?{rotulo:estado.resumo.ufs[uf].nome,valores:[
+      {chave:"brancos",v:t.p_brancos},{chave:"nulos",v:t.p_nulos},
+      {chave:"tecnicos",v:t.p_tecnicos}]}:null;
+  }).filter(Boolean).sort((a,b)=>
+    b.valores.reduce((s,v)=>s+v.v,0)-a.valores.reduce((s,v)=>s+v.v,0));
+
+  const c=el("div",{class:"card"},
+    el("h3",{txt:"Brancos, nulos e nulos técnicos por estado"}),
+    el("p",{class:"nota",txt:"Ordenado pela soma das três categorias."}));
+  c.append(legenda(["brancos","nulos","tecnicos"]));
+  const p=el("div",{class:"plot"});
+  p.append(barrasH(itens,["brancos","nulos","tecnicos"],{margemE:118}));
+  c.append(p);f.append(c);
+
+  const c2=el("div",{class:"card"},
+    el("h3",{txt:"Abstenção"}),
+    el("p",{class:"nota",txt:
+      "Percentual sobre o eleitorado apto — denominador diferente do gráfico "+
+      "acima, por isso em outro cartão."}));
+  const p2=el("div",{class:"plot"});
+  p2.append(barrasH(UF_ORDEM.map(uf=>{
+    const t=totaisUF(uf,estado.cargo,estado.ano);
+    return t?{rotulo:estado.resumo.ufs[uf].nome,
+      valores:[{chave:"abstencao",v:t.p_abstencao}]}:null;
+  }).filter(Boolean).sort((a,b)=>b.valores[0].v-a.valores[0].v),["abstencao"],
+    {margemE:118,alturaBarra:17}));
+  c2.append(p2);f.append(c2);
+
+  // Tabela de apoio: alívio para os matizes de baixo contraste no modo claro.
+  const env=el("div",{class:"tabela-envolve"});
+  const t=el("table");
+  t.append(el("thead",{},el("tr",{},
+    ["Estado","Brancos %","Nulos %","Nulos técn. %","Soma %","Abstenção %",
+     "Votos depositados"].map(h=>el("th",{txt:h})))));
+  const tb=el("tbody");
+  UF_ORDEM.forEach(uf=>{
+    const v=totaisUF(uf,estado.cargo,estado.ano);
+    if(!v)return;
+    tb.append(el("tr",{},[el("td",{txt:estado.resumo.ufs[uf].nome}),
+      el("td",{txt:num(v.p_brancos)}),el("td",{txt:num(v.p_nulos)}),
+      el("td",{txt:num(v.p_tecnicos)}),el("td",{txt:num(v.p_bn)}),
+      el("td",{txt:num(v.p_abstencao)}),el("td",{txt:fmt(v.votos)})]));
+  });
+  t.append(tb);env.append(t);f.append(env);
+  return f;
+}
+
+const INDICADORES=[
+  ["alf","Taxa de alfabetização (%), Censo 2022"],
+  ["ea","Eleitores com ensino superior (%), TSE 2022"],
+  ["eb","Eleitores com baixa escolaridade (%), TSE 2022"],
+  ["pib","PIB per capita (R$), IBGE 2021"],
+  ["sal","Salário médio (salários mínimos), CEMPRE 2021"],
+  ["i60","Eleitores com 60 anos ou mais (%), TSE 2022"],
+  ["jov","Eleitores de 16 a 24 anos (%), TSE 2022"],
+  ["dens","Densidade demográfica (hab/km²), Censo 2022"],
+];
+function painelPerfil(){
+  const d=estado.dados[estado.uf];
+  const f=document.createDocumentFragment();
+  f.append(el("div",{class:"aviso",html:
+    "<b>Análise exploratória.</b> O que segue é descritivo, não causal. "+
+    "As associações abaixo são correlações entre agregados municipais e "+
+    "estão sujeitas à falácia ecológica: uma relação observada entre "+
+    "municípios não autoriza conclusões sobre eleitores individuais. "+
+    "Nenhum controle por confundidores foi aplicado."}));
+
+  const sel=el("select",{id:"f-ind"});
+  INDICADORES.forEach(([k,rot])=>sel.append(el("option",{value:k,txt:rot})));
+  const barra=el("div",{class:"filtros"},
+    el("label",{},document.createTextNode("Indicador"),sel));
+  f.append(barra);
+
+  const card=el("div",{class:"card"});
+  f.append(card);
+
+  function desenha(){
+    const chave=sel.value;
+    const rot=INDICADORES.find(i=>i[0]===chave)[1];
+    const pontos=d.municipios.map(m=>{
+      const r=extrai((m.d[estado.cargo]||{})[estado.ano]);
+      if(!r||!r.votos||m[chave]==null)return null;
+      return {nome:m.n,x:m[chave],y:r.p_bn,peso:m.el||1};
+    }).filter(Boolean);
+
+    card.innerHTML="";
+    if(pontos.length<8){
+      card.append(el("p",{class:"nota",txt:"Dados insuficientes."}));return;}
+    const {svg,r}=dispersao(pontos,
+      {rotuloX:rot,rotuloY:"Brancos + nulos (%)"});
+    const forca=Math.abs(r)<.2?"praticamente nula":Math.abs(r)<.4?"fraca":
+      Math.abs(r)<.6?"moderada":"forte";
+    card.append(
+      el("h3",{txt:`${rot} e o não-voto`}),
+      el("p",{class:"nota",txt:
+        `${pontos.length} municípios de ${d.nome}. Cada círculo é um município; `+
+        `o tamanho representa o eleitorado. A reta é um ajuste de mínimos `+
+        `quadrados, apenas para orientar a leitura.`}),
+      el("div",{class:"plot"},svg),
+      el("p",{class:"nota",style:"margin-top:13px",txt:
+        `Correlação de Pearson r = ${r.toFixed(3)} — associação ${forca}`+
+        `${r<0?", negativa":r>0?", positiva":""}. `+
+        `r não mede causalidade nem descreve municípios individuais.`}));
+  }
+  sel.addEventListener("change",desenha);
+  desenha();
+
+  // Panorama de correlações: útil para ver qual indicador se destaca.
+  const tabela=el("div",{class:"card"},
+    el("h3",{txt:"Todas as correlações, de uma vez"}),
+    el("p",{class:"nota",txt:
+      `Correlação de Pearson entre cada indicador municipal e a taxa de `+
+      `brancos + nulos, em ${d.nome}, para ${estado.cargo} em ${estado.ano}.`}));
+  const env=el("div",{class:"tabela-envolve"});
+  const t=el("table");
+  t.append(el("thead",{},el("tr",{},
+    ["Indicador","r","Municípios"].map(h=>el("th",{txt:h})))));
+  const tb=el("tbody");
+  INDICADORES.map(([k,rot])=>{
+    const ps=d.municipios.map(m=>{
+      const r=extrai((m.d[estado.cargo]||{})[estado.ano]);
+      return (r&&r.votos&&m[k]!=null)?[m[k],r.p_bn]:null;}).filter(Boolean);
+    return {rot,r:ps.length>7?pearson(ps.map(p=>p[0]),ps.map(p=>p[1])):null,n:ps.length};
+  }).sort((a,b)=>Math.abs(b.r||0)-Math.abs(a.r||0))
+    .forEach(x=>tb.append(el("tr",{},[el("td",{txt:x.rot}),
+      el("td",{txt:x.r==null?"—":x.r.toFixed(3)}),el("td",{txt:fmt(x.n)})])));
+  t.append(tb);env.append(t);tabela.append(env);
+  f.append(tabela);
+  return f;
+}
+
+function painelMetodo(){
+  const f=document.createDocumentFragment();
+  f.append(el("div",{class:"card",html:`
+    <h3>O que este estudo mede</h3>
+    <p class="nota">O objeto é o <b>não-voto manifesto</b>: o voto em branco, o
+    voto nulo e o nulo técnico. Não há aqui análise de candidaturas, partidos ou
+    resultados de disputa — apenas a parcela do comparecimento que não se
+    converteu em voto válido, e como ela varia entre municípios.</p>
+
+    <h3 style="margin-top:20px">As três categorias</h3>
+    <p class="nota"><b>Branco</b> — o eleitor confirma sem indicar candidato
+    (<code>QT_VOTOS_BRANCOS</code>).</p>
+    <p class="nota"><b>Nulo</b> — o eleitor digita número inexistente ou anula
+    deliberadamente (<code>QT_VOTOS_NULOS</code>).</p>
+    <p class="nota"><b>Nulo técnico</b> — voto dado a candidatura depois
+    indeferida ou sub judice, anulado por decisão da Justiça Eleitoral, não por
+    escolha do eleitor (<code>QT_VOTOS_NULOS_TECNICOS</code>). É a única das
+    três que não expressa intenção de quem votou.</p>
+
+    <h3 style="margin-top:20px">Denominadores</h3>
+    <p class="nota">Brancos, nulos e nulos técnicos são calculados sobre os
+    <b>votos depositados na urna para aquele cargo</b> (<code>QT_VOTOS</code>).
+    A abstenção é calculada sobre o <b>eleitorado apto</b>
+    (<code>QT_APTOS</code>), porque quem se abstém não deposita voto algum.
+    São denominadores distintos e por isso as duas medidas nunca aparecem no
+    mesmo gráfico.</p>
+
+    <h3 style="margin-top:20px">Por que o cargo é um filtro, e não um tema</h3>
+    <p class="nota">Cada eleitor deposita cinco votos numa eleição geral
+    (presidente, governador, senador, deputado federal, deputado estadual).
+    Somar as categorias entre cargos contaria o mesmo eleitor várias vezes e
+    produziria um número sem significado. Por isso o cargo funciona como
+    recorte: os percentuais só são comparáveis dentro do mesmo cargo. A visão
+    padrão é <b>Presidente</b>, o único cargo com exatamente um voto por eleitor
+    nos dois anos — o comparador mais limpo entre 2018 e 2022.</p>
+
+    <h3 style="margin-top:20px">Ressalvas que mudam a leitura</h3>
+    <p class="nota"><b>Nulo técnico não existe em 2018.</b> A base do TSE
+    daquele ano não destaca a categoria — o campo vem zerado em todos os
+    municípios dos seis estados, o que foi verificado, não presumido. O que hoje
+    seria nulo técnico está embutido no nulo comum de 2018. A série dessa
+    categoria não é comparável entre os dois pleitos.</p>
+    <p class="nota"><b>Senado em 2018.</b> Foram duas vagas, com dois votos por
+    eleitor; em 2022, uma vaga e um voto. Os volumes absolutos de 2018 são cerca
+    de duas vezes maiores por construção. O percentual corrige isso, porque o
+    denominador acompanha.</p>
+    <p class="nota"><b>Raça e cor foram descartadas.</b> O perfil do eleitorado
+    do TSE traz o campo, mas nos seis estados a cobertura medida em 2022 é de
+    0%: praticamente todo o eleitorado consta como "não informado", já que a
+    autodeclaração só é coletada em alistamentos e revisões recentes. Publicar
+    o campo seria publicar ruído.</p>
+    <p class="nota"><b>Renda municipal é aproximada.</b> O rendimento domiciliar
+    per capita do Censo 2022 não é publicado em nível municipal — apenas para
+    Brasil e unidades da federação. A renda entra aqui por dois substitutos
+    imperfeitos: PIB per capita, que mede produção e não renda das famílias, e
+    salário médio do emprego formal, que ignora a economia informal — relevante
+    justamente nos municípios mais pobres do recorte.</p>
+    <p class="nota"><b>Correlação não é causa.</b> A aba de perfil cruza
+    agregados municipais. Uma associação entre municípios não descreve
+    eleitores: é falácia ecológica supor o contrário. Não há controle por
+    confundidores, e nenhuma das relações ali deve ser lida como efeito.</p>
+
+    <h3 style="margin-top:20px">Construção da base</h3>
+    <p class="nota">A base do TSE vem em granularidade município × zona × cargo
+    e foi somada para município × cargo, mantendo apenas o 1º turno. O
+    pareamento entre o código de município do TSE e o código do IBGE cobriu os
+    1.792 municípios dos seis estados, sem exceção. Os totais estaduais foram
+    conferidos contra os valores publicados pelo TSE.</p>
+
+    <h3 style="margin-top:20px">Reprodutibilidade</h3>
+    <p class="nota">Os scripts que baixam, agregam e conferem os dados estão no
+    repositório, numerados na ordem de execução. Rodá-los do zero reconstrói
+    integralmente os arquivos que esta página consome.</p>`}));
+  return f;
+}
+
+/* ---------- orquestração ---------- */
+function renderiza(){
+  montaFiltros();
+  const p=document.getElementById("painel");
+  p.innerHTML="";
+  escondeTT();
+  const mapa={panorama:painelPanorama,municipios:painelMunicipios,
+    comparacao:painelComparacao,perfil:painelPerfil,metodo:painelMetodo};
+  p.append(mapa[estado.aba]());
+}
+async function selecionaUF(uf){
+  estado.uf=uf;
+  marcaSelecao();
+  if(!estado.dados[uf]){
+    document.getElementById("carregando").textContent=
+      `Carregando ${estado.resumo.ufs[uf].nome}…`;
+    document.getElementById("carregando").classList.remove("oculto");
+    estado.dados[uf]=await (await fetch(`dados/${uf}.json`)).json();
+    document.getElementById("carregando").classList.add("oculto");
+  }
+  document.getElementById("conteudo").classList.remove("oculto");
+  montaAbas();renderiza();gravaHash();
+}
+/* Estado da página vive no hash: #SP/perfil. Permite compartilhar a aba
+   exata que se está lendo. */
+function gravaHash(){
+  history.replaceState(null,"",`#${estado.uf}/${estado.aba}`);
+}
+function leHash(){
+  const [uf,aba]=location.hash.replace("#","").split("/");
+  return {uf:UF_ORDEM.includes((uf||"").toUpperCase())?uf.toUpperCase():"SP",
+          aba:ABAS.some(a=>a.id===aba)?aba:"panorama"};
+}
+async function inicia(){
+  try{
+    const [resumo,mapa]=await Promise.all([
+      fetch("dados/resumo.json").then(r=>r.json()),
+      fetch("dados/mapa_uf.json").then(r=>r.json())]);
+    estado.resumo=resumo;estado.mapa=mapa;
+    montaMapa();montaLista();
+    document.getElementById("carregando").classList.add("oculto");
+    document.getElementById("data-atualizacao").textContent=
+      "Publicado em julho de 2026";
+    const h=leHash();
+    estado.aba=h.aba;
+    await selecionaUF(h.uf);
+    gravaHash();
+  }catch(e){
+    document.getElementById("carregando").textContent=
+      "Não foi possível carregar os dados. "+e.message;
+  }
+}
+inicia();
+</script>
+</body>
+</html>

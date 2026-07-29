@@ -1,0 +1,5 @@
+# Bases brutas e intermediários: reconstruíveis via scripts/00 a 04.
+dados/raw/
+dados/proc/
+__pycache__/
+*.pyc
