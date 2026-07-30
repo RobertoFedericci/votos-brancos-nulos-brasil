@@ -59,7 +59,58 @@ percentuais só são comparáveis dentro do mesmo cargo. A visão padrão é
   informal — relevante justamente nos municípios mais pobres do recorte.
 - **Correlação não é causa.** A aba de perfil cruza agregados municipais e está
   sujeita à falácia ecológica: uma associação entre municípios não descreve
-  eleitores individuais. Não há controle por confundidores.
+  eleitores individuais. Isso continua valendo na aba de modelo — um
+  coeficiente estimado sobre municípios não vira efeito sobre pessoas.
+
+## A modelagem
+
+Desfecho: **logito** da taxa de brancos + nulos (Presidente, 2022). Estimação
+por **mínimos quadrados ponderados**, peso `n·p·(1−p)` — o inverso da variância
+assintótica do logito, porque a taxa de um município com 800 eleitores é muito
+mais ruidosa que a de uma capital.
+
+### Por que não há stepwise no resultado final
+
+O stepwise foi rodado e está reportado na página. Foi descartado pelo teste de
+estabilidade, não por preferência:
+
+| Recorte | Conjuntos distintos em 200 reamostragens | Frequência do "vencedor" |
+|---|---|---|
+| Agrupado (n=1.792) | 44 | 12,5% |
+| São Paulo (n=645) | 99 | 7,5% |
+| Bahia (n=417) | 92 | 5,0% |
+| Ceará (n=184) | 109 | 8,5% |
+
+A causa é estrutural: as três variáveis de escolaridade **somam 100 por
+construção** (VIF de 79.420, 359.760 e 149.625). Qual delas o algoritmo mantém é
+decidido por ruído numérico. O modelo final usa um conjunto pré-especificado,
+com a composição reduzida a uma variável, e **elastic net** quando se quer
+encolhimento — estável sob colinearidade, ao contrário da busca.
+
+### Achados
+
+- **O estado pesa mais que o município.** No modelo agrupado, os efeitos fixos
+  de estado sozinhos explicam **65,2%** da variância; os oito indicadores
+  municipais somam **6,9 pontos** sobre isso (R² total 0,721).
+- **O modelo não transfere entre estados.** Retirando um estado inteiro, sem
+  efeitos fixos, boosting e mínimos quadrados ficam com R² negativo — pior que
+  chutar a média.
+- **Dentro de um estado, o poder preditivo é baixo ou nulo.** São Paulo tem R²
+  de 0,22 dentro da amostra e negativo fora dela: sobreajuste.
+- **Boosting não bate a regressão linear** no modelo agrupado. A relação é
+  essencialmente linear, e o modelo simples é o adequado. O boosting não é usado
+  para importâncias de variáveis — com 144 municípios no Pará, isso seria ruído.
+- **Os resíduos se agrupam no espaço.** I de Moran de +0,29 (p < 0,001, oito
+  vizinhos mais próximos) no modelo agrupado, positivo e significativo em quase
+  todos os recortes. Há um fator regional não captado, e os erros-padrão são
+  otimistas — municípios não são observações independentes. Corrigir isso
+  exigiria um modelo espacial explícito, fora do escopo deste estudo.
+
+### Sobre o R²
+
+É reportado nas versões ponderada e não ponderada. A ponderação é correta para
+estimar, mas concentra peso demais: a capital paulista detém **29% do peso** do
+estado, e um único bloco de validação cruzada passa a definir a métrica.
 
 ## Fontes
 
@@ -77,17 +128,29 @@ percentuais só são comparáveis dentro do mesmo cargo. A visão padrão é
 
 Requer apenas Python 3 — sem dependências externas.
 
+Os scripts `00` a `05` rodam só com a biblioteca padrão do Python 3.
+
 ```bash
-python3 scripts/00_baixa_dados.py    # baixa TSE + tabela de correspondência (~32 MB)
+python3 scripts/00_baixa_dados.py    # baixa TSE + malha IBGE + correspondência (~32 MB)
 python3 scripts/01_tse_votacao.py    # agrega município x cargo, 1º turno
 python3 scripts/02_tse_perfil.py     # perfil do eleitorado por município
 python3 scripts/03_ibge.py           # indicadores municipais via API SIDRA
 python3 scripts/04_build_site.py     # monta os JSON que a página consome
+python3 scripts/05_centroides.py     # centroides municipais (autocorrelação espacial)
 python3 -m http.server -d site 8000  # abre em http://localhost:8000
 ```
 
+O passo de modelagem é o único com dependências externas:
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/python scripts/06_modelagem.py   # imprime o relatório e grava modelo.json
+```
+
 Os scripts são idempotentes e numerados na ordem de execução. Rodá-los do zero
-reconstrói integralmente os arquivos em `site/dados/`.
+reconstrói integralmente os arquivos em `site/dados/`. A semente aleatória é
+fixa, então o bootstrap do stepwise e as permutações do I de Moran reproduzem
+os mesmos números.
 
 ### Conferência
 

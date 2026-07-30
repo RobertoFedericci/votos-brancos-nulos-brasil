@@ -1,0 +1,7 @@
+# Só o passo de modelagem (scripts/06) precisa destes pacotes.
+# Os scripts 00 a 05, que constroem os dados da página, rodam apenas com a
+# biblioteca padrão do Python (o 05 usa somente urllib e json).
+numpy>=2.0
+scikit-learn>=1.5
+statsmodels>=0.14
+xgboost>=2.0

@@ -3,3 +3,4 @@ dados/raw/
 dados/proc/
 __pycache__/
 *.pyc
+.venv/

@@ -240,7 +240,7 @@ const NOMES={brancos:"Brancos",nulos:"Nulos",tecnicos:"Nulos técnicos",abstenca
 const UF_ORDEM=["SP","BA","PE","CE","PA","MA"];
 const SVG="http://www.w3.org/2000/svg";
 
-const estado={resumo:null,mapa:null,uf:null,dados:{},aba:"panorama",
+const estado={resumo:null,mapa:null,modelo:null,uf:null,dados:{},aba:"panorama",
               cargo:"Presidente",ano:"2022"};
 
 /* ---------- utilidades ---------- */
@@ -474,6 +474,7 @@ const ABAS=[
   {id:"municipios",nome:"Municípios"},
   {id:"comparacao",nome:"Os seis estados"},
   {id:"perfil",nome:"Perfil do eleitor"},
+  {id:"modelo",nome:"Modelo"},
   {id:"metodo",nome:"Metodologia"},
 ];
 function montaAbas(){
@@ -497,7 +498,7 @@ function montaFiltros(){
   fc.onchange=e=>{estado.cargo=e.target.value;renderiza();};
   fa.onchange=e=>{estado.ano=e.target.value;renderiza();};
   document.getElementById("filtros").style.display=
-    (estado.aba==="metodo")?"none":"flex";
+    (estado.aba==="metodo"||estado.aba==="modelo")?"none":"flex";
   document.getElementById("f-nota").textContent=
     estado.cargo==="Senador"
       ?"Em 2018 o Senado renovou duas vagas: cada eleitor depositou dois votos."
@@ -789,6 +790,236 @@ function painelPerfil(){
   return f;
 }
 
+/* Gráfico de floresta: coeficiente com intervalo de 95%, linha do zero.
+   A significância não é codificada por cor — vem do intervalo cruzar ou não
+   o zero, e da tabela logo abaixo. */
+function floresta(coefs,{largura=680}={}){
+  const alturaLinha=25,mE=228,mD=58;
+  const alt=coefs.length*alturaLinha+30;
+  const plot=largura-mE-mD;
+  const lim=Math.max(...coefs.map(c=>Math.abs(c.beta)+1.96*c.ep))*1.08||1;
+  const ex=v=>mE+(v+lim)/(2*lim)*plot;
+  const s=svgEl("svg",{viewBox:`0 0 ${largura} ${alt}`,width:largura,
+    style:"max-width:100%;height:auto"});
+
+  const passo=escolhePasso(lim);
+  for(let g=-Math.floor(lim/passo)*passo;g<=lim;g+=passo){
+    const x=ex(g);
+    s.append(svgEl("line",{x1:x,x2:x,y1:0,y2:alt-20,
+      class:Math.abs(g)<1e-9?"eixo":"linha-grade"}));
+    const t=svgEl("text",{x:x,y:alt-5,class:"tick","text-anchor":"middle"});
+    t.textContent=num(g,2);s.append(t);
+  }
+  coefs.forEach((c,i)=>{
+    const y=i*alturaLinha+16;
+    const rot=svgEl("text",{x:mE-12,y:y+4,class:"rotulo","text-anchor":"end"});
+    rot.textContent=c.var;s.append(rot);
+    const lo=c.beta-1.96*c.ep,hi=c.beta+1.96*c.ep;
+    const cruza=lo<=0&&hi>=0;
+    const g=svgEl("g",{});
+    g.append(svgEl("line",{x1:ex(lo),x2:ex(hi),y1:y,y2:y,
+      stroke:"var(--s1)","stroke-width":2,"stroke-opacity":cruza?.4:1,
+      "stroke-linecap":"round"}));
+    g.append(svgEl("circle",{cx:ex(c.beta),cy:y,r:4.5,fill:"var(--s1)",
+      "fill-opacity":cruza?.4:1,stroke:"var(--surface)","stroke-width":2}));
+    ligaTT(g,c.var,[["Coeficiente",num(c.beta,3)],
+      ["Intervalo 95%",`${num(lo,3)} a ${num(hi,3)}`],
+      ["p",c.p<.0001?"< 0,0001":num(c.p,4)],["VIF",num(c.vif,1)]]);
+    s.append(g);
+    const lb=svgEl("text",{x:largura-6,y:y+4,class:"rotulo","text-anchor":"end"});
+    lb.textContent=num(c.beta,3);s.append(lb);
+  });
+  return s;
+}
+
+function painelModelo(){
+  const f=document.createDocumentFragment();
+  const M=estado.modelo;
+  if(!M){f.append(el("p",{class:"nota",txt:"Modelo indisponível."}));return f;}
+  const agrup=M.blocos[0];
+  const doEstado=M.blocos.find(b=>b.rotulo.includes(`(${estado.uf})`));
+  const bloco=(estado.escopoModelo==="uf"&&doEstado)?doEstado:agrup;
+
+  // O escopo é escolha própria desta aba: o modelo agrupado e o modelo de um
+  // estado só respondem perguntas diferentes.
+  const sel=el("select",{});
+  [["agrupado",`Agrupado — seis estados (n = ${fmt(agrup.n)})`],
+   ["uf",`Só ${estado.resumo.ufs[estado.uf].nome} (n = ${fmt(doEstado?doEstado.n:0)})`]]
+    .forEach(([v,rot])=>{
+      const o=el("option",{value:v,txt:rot});
+      if(v===(estado.escopoModelo||"agrupado"))o.selected=true;
+      sel.append(o);});
+  sel.onchange=e=>{estado.escopoModelo=e.target.value;renderiza();};
+  f.append(el("div",{class:"filtros"},
+    el("label",{},document.createTextNode("Escopo do modelo"),sel)));
+
+  f.append(el("div",{class:"aviso",html:
+    `<b>Este painel não segue os filtros acima.</b> O modelo é estimado uma vez,
+     para <b>${M.cargo} em ${M.ano}</b> — o cargo com um voto por eleitor nos dois
+     anos. Continua valendo tudo o que está na aba de perfil: são agregados
+     municipais, e nenhum coeficiente aqui descreve eleitores individuais.`}));
+
+  // --- por que não stepwise ---
+  const c0=el("div",{class:"card"},
+    el("h3",{txt:"Por que não há um stepwise aqui"}),
+    el("p",{class:"nota",txt:
+      "O stepwise foi rodado. O que segue é o teste que decidiu descartá-lo: "+
+      "reamostrando os municípios 200 vezes com reposição e reexecutando a "+
+      "seleção, mede-se com que frequência cada variável sobrevive."}));
+  const kp=el("div",{class:"kpis"},
+    el("div",{class:"kpi"},
+      el("div",{class:"v",txt:fmt(bloco.estab_conjuntos)}),
+      el("div",{class:"l",txt:"conjuntos de variáveis diferentes escolhidos em 200 reamostragens"})),
+    el("div",{class:"kpi"},
+      el("div",{class:"v",txt:num(bloco.estab_moda)+"%"}),
+      el("div",{class:"l",txt:"frequência do conjunto mais escolhido — o \"vencedor\" do stepwise"})));
+  c0.append(kp);
+  c0.append(el("p",{class:"nota",style:"margin-bottom:12px",txt:
+    "Frequência de seleção de cada variável:"}));
+  const p0=el("div",{class:"plot"});
+  p0.append(barrasH(bloco.estabilidade.map(e=>({rotulo:e.var,
+    valores:[{chave:"brancos",v:e.freq}]})),["v"],{margemE:214,alturaBarra:13}));
+  c0.append(p0);
+  c0.append(el("p",{class:"nota",style:"margin-top:13px",txt:
+    "Se a seleção fosse uma propriedade dos dados, quase sempre o mesmo "+
+    "conjunto sairia. Ele não sai. A causa é estrutural: as três variáveis de "+
+    "escolaridade somam 100 por construção, e qual delas o algoritmo mantém é "+
+    "decidido por ruído de arredondamento."}));
+  f.append(c0);
+
+  // --- colinearidade ---
+  const c1=el("div",{class:"card"},
+    el("h3",{txt:"Colinearidade — o que quebra a seleção automática"}),
+    el("p",{class:"nota",txt:
+      "Fator de inflação da variância no conjunto completo. Acima de 10 já é "+
+      "problemático. As três variáveis de escolaridade somam 100 por "+
+      "construção, e por isso foram reduzidas a uma no modelo final."}));
+  c1.append(tabela(["Variável","VIF"],
+    bloco.vif_todas.map(v=>[v.var,
+      v.vif>10?num(v.vif,0)+"  (inaceitável)":num(v.vif,1)])));
+  f.append(c1);
+
+  // --- coeficientes ---
+  const o=bloco.ols;
+  const c2=el("div",{class:"card"},
+    el("h3",{txt:"Mínimos quadrados ponderados — conjunto pré-especificado"}),
+    el("p",{class:"nota",txt:
+      "Coeficientes padronizados: efeito de um desvio-padrão do preditor sobre "+
+      "o logito da taxa de brancos + nulos. A barra é o intervalo de 95%; "+
+      "quando ela cruza o zero, o efeito não se distingue de nada. Erros-padrão "+
+      "robustos (HC3), ponderação pelo eleitorado."}));
+  const p2=el("div",{class:"plot"});
+  p2.append(floresta(o.coef));
+  c2.append(p2);
+  c2.append(tabela(["Variável","Coef.","Erro-padrão","p","VIF"],
+    o.coef.map(c=>[c.var,num(c.beta,3),num(c.ep,3),
+      c.p<.0001?"< 0,0001":num(c.p,4),num(c.vif,1)])));
+  f.append(c2);
+
+  // --- decomposição do R², só no modelo agrupado ---
+  if(o.r2_so_ef!=null){
+    const c3=el("div",{class:"card"},
+      el("h3",{txt:"De onde vem o poder explicativo"}),
+      el("p",{class:"nota",txt:
+        "O R² do modelo agrupado parece alto, mas quase todo ele vem de saber "+
+        "em qual estado o município fica — não dos indicadores municipais."}));
+    const p3=el("div",{class:"plot"});
+    p3.append(barrasH([
+      {rotulo:"Modelo completo",valores:[{chave:"brancos",v:100*o.r2}]},
+      {rotulo:"Só efeitos de estado",valores:[{chave:"nulos",v:100*o.r2_so_ef}]},
+      {rotulo:"Só preditores municipais",valores:[{chave:"tecnicos",v:100*o.r2_so_pred}]},
+    ],["v"],{margemE:186,alturaBarra:17}));
+    c3.append(p3);
+    c3.append(el("p",{class:"nota",style:"margin-top:13px",txt:
+      `Sozinhos, os efeitos fixos de estado explicam ${num(100*o.r2_so_ef)}% da `+
+      `variância. Os oito indicadores municipais acrescentam `+
+      `${num(100*(o.r2-o.r2_so_ef))} pontos percentuais sobre isso. O que mais `+
+      `pesa na taxa de brancos e nulos de um município é o estado em que ele `+
+      `está, não o seu perfil socioeconômico.`}));
+    f.append(c3);
+  }
+
+  // --- comparação de modelos ---
+  if(bloco.gb){
+    const g=bloco.gb;
+    const c4=el("div",{class:"card"},
+      el("h3",{txt:"Gradient boosting bate a regressão linear?"}),
+      el("p",{class:"nota",txt:
+        `R² fora da amostra, ${g.desc}. Se o boosting não abre vantagem, a `+
+        `relação é essencialmente linear e o modelo simples é o adequado.`}));
+    c4.append(tabela(["Modelo","R² ponderado","R² não ponderado"],[
+      ["Gradient boosting",num(g.r2_gb,3),num(g.r2_gb_np,3)],
+      ["Mínimos quadrados",num(g.r2_ols,3),num(g.r2_ols_np,3)],
+      ["Ganho do boosting",num(g.r2_gb-g.r2_ols,3),num(g.r2_gb_np-g.r2_ols_np,3)],
+    ]));
+    c4.append(el("p",{class:"nota",style:"margin-top:12px",txt:
+      `As duas colunas existem porque a ponderação pelo eleitorado concentra `+
+      `muito peso em poucos municípios — o maior deles detém `+
+      `${num(bloco.peso_top1)}% do peso total neste recorte. A coluna não `+
+      `ponderada trata cada município igual e mostra o desempenho típico.`}));
+    if(bloco.gb_transf){
+      const t=bloco.gb_transf;
+      c4.append(el("p",{class:"nota",style:"margin-top:14px",html:
+        `<b>Transferência entre estados.</b> Retirando um estado inteiro e sem `+
+        `efeitos fixos, os dois modelos ficam com R² negativo `+
+        `(boosting ${num(t.r2_gb_np,2)}, mínimos quadrados ${num(t.r2_ols_np,2)}) `+
+        `— pior do que chutar a média. O que se aprende em cinco estados não `+
+        `prevê o sexto.`}));
+    }
+    f.append(c4);
+  }
+
+  // --- autocorrelação espacial ---
+  if(bloco.moran){
+    const m=bloco.moran;
+    const c5=el("div",{class:"card"},
+      el("h3",{txt:"Autocorrelação espacial dos resíduos"}),
+      el("p",{class:"nota",txt:
+        "I de Moran com os oito vizinhos mais próximos, significância por 999 "+
+        "permutações. Mede se o erro do modelo se agrupa no mapa."}));
+    c5.append(el("div",{class:"kpis"},
+      el("div",{class:"kpi"},el("div",{class:"v",txt:num(m.I,3)}),
+        el("div",{class:"l",txt:"I de Moran dos resíduos (0 = sem padrão espacial)"})),
+      el("div",{class:"kpi"},el("div",{class:"v",txt:m.p<.001?"< 0,001":num(m.p,3)}),
+        el("div",{class:"l",txt:"p, por permutação"}))));
+    c5.append(el("p",{class:"nota",style:"margin-top:4px",txt:
+      m.p<.05&&m.I>0
+        ? "Os resíduos se agrupam no espaço: municípios vizinhos erram para o "+
+          "mesmo lado. Há algo regional que os preditores não captam, e os "+
+          "erros-padrão da tabela de coeficientes são otimistas — os "+
+          "municípios não são observações independentes."
+        : "Sem evidência de agrupamento espacial nos resíduos."}));
+    f.append(c5);
+  }
+
+  // --- elastic net ---
+  if(bloco.enet){
+    const c6=el("div",{class:"card"},
+      el("h3",{txt:"Elastic net — seleção estável, no lugar do stepwise"}),
+      el("p",{class:"nota",txt:
+        `Penalização escolhida por validação cruzada (alfa = `+
+        `${num(bloco.enet.alpha,5)}, l1 = ${num(bloco.enet.l1,2)}). Em vez de `+
+        `incluir ou excluir variáveis por busca, encolhe os coeficientes de `+
+        `forma contínua — o que é estável sob colinearidade.`}));
+    c6.append(tabela(["Variável","Coeficiente"],
+      bloco.enet.coef.map(c=>[c.var,
+        Math.abs(c.beta)<1e-8?"0  (zerado)":num(c.beta,3)])));
+    f.append(c6);
+  }
+  return f;
+}
+
+/* Tabela simples: cabeçalhos + linhas já formatadas. */
+function tabela(cabecalhos,linhas){
+  const env=el("div",{class:"tabela-envolve"});
+  const t=el("table");
+  t.append(el("thead",{},el("tr",{},cabecalhos.map(h=>el("th",{txt:h})))));
+  const tb=el("tbody");
+  linhas.forEach(l=>tb.append(el("tr",{},l.map(v=>el("td",{txt:String(v)})))));
+  t.append(tb);env.append(t);
+  return env;
+}
+
 function painelMetodo(){
   const f=document.createDocumentFragment();
   f.append(el("div",{class:"card",html:`
@@ -851,6 +1082,51 @@ function painelMetodo(){
     eleitores: é falácia ecológica supor o contrário. Não há controle por
     confundidores, e nenhuma das relações ali deve ser lida como efeito.</p>
 
+    <h3 style="margin-top:20px">A modelagem</h3>
+    <p class="nota">O desfecho é o <b>logito</b> da taxa de brancos + nulos —
+    uma proporção limitada, levada para a reta real. A estimação é por
+    <b>mínimos quadrados ponderados</b>, com peso <code>n·p·(1−p)</code>, o
+    inverso da variância assintótica do logito: a taxa de um município com 800
+    eleitores é medida com muito mais ruído que a de uma capital, e não pode
+    pesar igual.</p>
+    <p class="nota">O <b>stepwise foi rodado</b>, a pedido, e descartado com
+    base no resultado. Reamostrando os municípios 200 vezes com reposição, ele
+    escolhe 44 conjuntos diferentes de variáveis no modelo agrupado e 99 em São
+    Paulo; o conjunto "vencedor" aparece em 12,5% e 7,5% das amostras. A causa é
+    estrutural: as três variáveis de escolaridade somam 100 por construção, com
+    VIF acima de 79 mil, e qual delas o algoritmo mantém é decidido por ruído
+    numérico. O modelo final usa um conjunto pré-especificado, com a composição
+    reduzida a uma variável, e <b>elastic net</b> no lugar da busca quando se
+    quer encolhimento.</p>
+    <p class="nota">O <b>gradient boosting</b> entra só como teste de forma
+    funcional, com validação cruzada. No modelo agrupado ele não supera os
+    mínimos quadrados — sinal de que a relação é essencialmente linear e de que
+    o modelo simples é o adequado. Não é usado para gerar importâncias de
+    variáveis: com 144 municípios no Pará, isso seria ruído com barra
+    colorida.</p>
+    <p class="nota">O <b>R² é reportado nas duas versões</b>, ponderada e não
+    ponderada. A ponderação é correta para estimar, mas concentra peso demais
+    em poucos municípios — a capital paulista detém 29% do peso do estado —, e
+    uma única observação passa a definir a métrica.</p>
+
+    <h3 style="margin-top:20px">O que o modelo mostrou</h3>
+    <p class="nota"><b>O estado importa mais que o município.</b> No modelo
+    agrupado, os efeitos fixos de estado sozinhos explicam 65,2% da variância;
+    os oito indicadores municipais acrescentam 6,9 pontos sobre isso. E ao
+    retirar um estado inteiro, sem efeitos fixos, os dois modelos ficam com R²
+    negativo — o que se aprende em cinco estados não prevê o sexto.</p>
+    <p class="nota"><b>Dentro de um estado, o poder preditivo é baixo ou
+    nulo.</b> Em São Paulo o R² dentro da amostra é 0,22, mas fora dela é
+    negativo: o modelo prevê pior que a média. É sobreajuste, e está reportado
+    como tal.</p>
+    <p class="nota"><b>Os resíduos se agrupam no espaço.</b> O I de Moran dos
+    resíduos é positivo e significativo em quase todos os recortes (0,29 no
+    modelo agrupado, p &lt; 0,001, com os oito vizinhos mais próximos). Municípios
+    vizinhos erram para o mesmo lado, o que indica um fator regional não
+    captado — e torna os erros-padrão otimistas, porque os municípios não são
+    observações independentes. Corrigir isso exigiria um modelo espacial
+    explícito, que está fora do escopo deste estudo.</p>
+
     <h3 style="margin-top:20px">Construção da base</h3>
     <p class="nota">A base do TSE vem em granularidade município × zona × cargo
     e foi somada para município × cargo, mantendo apenas o 1º turno. O
@@ -872,7 +1148,8 @@ function renderiza(){
   p.innerHTML="";
   escondeTT();
   const mapa={panorama:painelPanorama,municipios:painelMunicipios,
-    comparacao:painelComparacao,perfil:painelPerfil,metodo:painelMetodo};
+    comparacao:painelComparacao,perfil:painelPerfil,modelo:painelModelo,
+    metodo:painelMetodo};
   p.append(mapa[estado.aba]());
 }
 async function selecionaUF(uf){
@@ -900,10 +1177,11 @@ function leHash(){
 }
 async function inicia(){
   try{
-    const [resumo,mapa]=await Promise.all([
+    const [resumo,mapa,modelo]=await Promise.all([
       fetch("dados/resumo.json").then(r=>r.json()),
-      fetch("dados/mapa_uf.json").then(r=>r.json())]);
-    estado.resumo=resumo;estado.mapa=mapa;
+      fetch("dados/mapa_uf.json").then(r=>r.json()),
+      fetch("dados/modelo.json").then(r=>r.json())]);
+    estado.resumo=resumo;estado.mapa=mapa;estado.modelo=modelo;
     montaMapa();montaLista();
     document.getElementById("carregando").classList.add("oculto");
     document.getElementById("data-atualizacao").textContent=
