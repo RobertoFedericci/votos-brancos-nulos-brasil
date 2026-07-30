@@ -240,7 +240,8 @@ const NOMES={brancos:"Brancos",nulos:"Nulos",tecnicos:"Nulos técnicos",abstenca
 const UF_ORDEM=["SP","BA","PE","CE","PA","MA"];
 const SVG="http://www.w3.org/2000/svg";
 
-const estado={resumo:null,mapa:null,modelo:null,uf:null,dados:{},aba:"panorama",
+const estado={resumo:null,mapa:null,modelo:null,heterogeneidade:null,
+              uf:null,dados:{},aba:"panorama",
               cargo:"Presidente",ano:"2022"};
 
 /* ---------- utilidades ---------- */
@@ -992,6 +993,72 @@ function painelModelo(){
     f.append(c5);
   }
 
+  // --- heterogeneidade entre estados ---
+  const H=estado.heterogeneidade;
+  if(H&&bloco===agrup){
+    const fmtP=p=>p<1e-6?"< 0,000001":num(p,6);
+    const c7=el("div",{class:"card"},
+      el("h3",{txt:"Os seis estados têm realidades distintas?"}),
+      el("p",{class:"nota",txt:
+        "Três especificações aninhadas, comparadas por teste F. A pergunta não "+
+        "é retórica: ela decide se basta um modelo com estado como variável "+
+        "categórica, ou se cada estado precisa do seu próprio modelo."}));
+    c7.append(tabela(["Especificação","Parâmetros","Soma dos quadrados dos resíduos"],[
+      ["A. Intercepto e inclinações comuns",H.k.A,num(H.ssr.A,0)],
+      ["B. Um intercepto por estado (categórica)",H.k.B,num(H.ssr.B,0)],
+      ["C. Um intercepto e uma inclinação por estado",H.k.C,num(H.ssr.C,0)],
+    ]));
+    c7.append(el("div",{class:"kpis",style:"margin-top:16px"},
+      el("div",{class:"kpi"},
+        el("div",{class:"v",txt:"F = "+num(H.niveis.F,0)}),
+        el("div",{class:"l",txt:"B contra A — os patamares diferem entre estados"}),
+        el("div",{class:"d",txt:"p "+fmtP(H.niveis.p)})),
+      el("div",{class:"kpi"},
+        el("div",{class:"v",txt:"F = "+num(H.inclinacoes.F,1)}),
+        el("div",{class:"l",txt:"C contra B — as inclinações também diferem"}),
+        el("div",{class:"d",txt:"p "+fmtP(H.inclinacoes.p)}))));
+    c7.append(el("p",{class:"nota",style:"margin-top:14px",html:
+      "<b>As duas hipóteses são rejeitadas.</b> Não basta dar a cada estado o "+
+      "seu próprio patamar: o mesmo indicador tem <i>efeito diferente</i> em "+
+      "cada estado. Tratar estado apenas como variável categórica impõe uma "+
+      "inclinação comum que os dados recusam — por isso este estudo mantém "+
+      "também os seis modelos separados, disponíveis no seletor acima."}));
+    c7.append(el("p",{class:"nota",style:"margin-top:10px",txt:
+      "Ressalva: o teste F supõe observações independentes, e o I de Moran "+
+      "mostrou que elas não são. O p verdadeiro é maior que o calculado. "+
+      "Neste caso a folga é tão grande que a conclusão não se inverte, mas a "+
+      "força da evidência é menor do que o número sugere."}));
+    f.append(c7);
+
+    const c8=el("div",{class:"card"},
+      el("h3",{txt:"Quais indicadores mudam de comportamento entre estados"}),
+      el("p",{class:"nota",txt:
+        "Cada linha retira do modelo completo as interações de uma variável e "+
+        "testa se a piora excede o acaso."}));
+    c8.append(tabela(["Indicador","F","p","Veredito"],
+      H.por_variavel.map(v=>[v.var,num(v.F,2),
+        v.p<.0001?"< 0,0001":num(v.p,4),
+        v.varia?"varia entre estados":"estável"])));
+    f.append(c8);
+
+    const c9=el("div",{class:"card"},
+      el("h3",{txt:"A mesma variável, seis inclinações"}),
+      el("p",{class:"nota",txt:
+        "Inclinações estimadas separadamente por estado, todas na mesma escala "+
+        "padronizada — é isso que as torna comparáveis. A linha vertical é o "+
+        "zero: à esquerda o indicador reduz o não-voto, à direita aumenta."}));
+    const p9=el("div",{class:"plot"});
+    p9.append(inclinacoes(H.slopes,["SP","CE","BA","PE","PA","MA"],
+      H.por_variavel.filter(v=>v.varia).map(v=>v.var)));
+    c9.append(p9);
+    c9.append(el("p",{class:"nota",style:"margin-top:13px",html:
+      "O caso mais claro é a <b>alfabetização</b>: em São Paulo a inclinação é "+
+      "positiva, em todos os outros cinco é negativa. Não é diferença de "+
+      "intensidade — é troca de sinal. Um modelo com inclinação comum forçaria "+
+      "esses seis casos numa média que não descreve nenhum deles."}));
+    f.append(c9);
+  }
+
   // --- elastic net ---
   if(bloco.enet){
     const c6=el("div",{class:"card"},
@@ -1007,6 +1074,59 @@ function painelModelo(){
     f.append(c6);
   }
   return f;
+}
+
+/* Inclinações por estado: uma faixa por variável, seis pontos rotulados com a
+   sigla do estado. Série única — a identidade do estado vem do rótulo, não da
+   cor, o que evita seis matizes competindo numa dispersão. */
+function inclinacoes(slopes,ufs,destaques,{largura=680}={}){
+  const vars_=Object.keys(slopes);
+  const mE=214,mD=26,alturaLinha=50;
+  const alt=vars_.length*alturaLinha+34;
+  const plot=largura-mE-mD;
+  const todos=vars_.flatMap(v=>ufs.map(u=>slopes[v][u]));
+  const lim=Math.max(...todos.map(Math.abs))*1.15||1;
+  const ex=v=>mE+(v+lim)/(2*lim)*plot;
+  const s=svgEl("svg",{viewBox:`0 0 ${largura} ${alt}`,width:largura,
+    style:"max-width:100%;height:auto"});
+
+  const passo=escolhePasso(lim);
+  for(let g=-Math.floor(lim/passo)*passo;g<=lim;g+=passo){
+    const x=ex(g),zero=Math.abs(g)<1e-9;
+    s.append(svgEl("line",{x1:x,x2:x,y1:6,y2:alt-24,
+      class:zero?"eixo":"linha-grade"}));
+    const t=svgEl("text",{x:x,y:alt-8,class:"tick","text-anchor":"middle"});
+    t.textContent=num(g,2);s.append(t);
+  }
+  vars_.forEach((v,i)=>{
+    const y=i*alturaLinha+30;
+    const varia=destaques.includes(v);
+    const rot=svgEl("text",{x:mE-12,y:y+4,class:"rotulo","text-anchor":"end"});
+    rot.textContent=v;s.append(rot);
+    if(varia){
+      const m=svgEl("text",{x:mE-12,y:y+16,class:"tick","text-anchor":"end"});
+      m.textContent="varia entre estados";s.append(m);
+    }
+    // Cada rótulo vai para o primeiro nível vertical livre. Alternar altura de
+    // forma fixa não basta: dois estados próximos podem cair na mesma paridade
+    // e os rótulos se sobrepõem.
+    const ordenados=ufs.map(u=>({u,v:slopes[v][u]})).sort((a,b)=>a.v-b.v);
+    const niveis=[[],[],[]],desloc=[16,-9,27],LARG=18;
+    ordenados.forEach(p=>{
+      const cx=ex(p.v);
+      const c=svgEl("circle",{cx:cx,cy:y,r:4.5,fill:"var(--s1)",
+        stroke:"var(--surface)","stroke-width":2});
+      ligaTT(c,`${p.u} — ${v}`,[["Inclinação",num(p.v,3)]]);
+      s.append(c);
+      let nv=niveis.findIndex(oc=>oc.every(x=>Math.abs(x-cx)>=LARG));
+      if(nv<0)nv=0;
+      niveis[nv].push(cx);
+      const lb=svgEl("text",{x:cx,y:y+desloc[nv],class:"tick",
+        "text-anchor":"middle"});
+      lb.textContent=p.u;s.append(lb);
+    });
+  });
+  return s;
 }
 
 /* Tabela simples: cabeçalhos + linhas já formatadas. */
@@ -1109,6 +1229,28 @@ function painelMetodo(){
     em poucos municípios — a capital paulista detém 29% do peso do estado —, e
     uma única observação passa a definir a métrica.</p>
 
+    <h3 style="margin-top:20px">Um modelo por estado, e por quê</h3>
+    <p class="nota">Há três especificações possíveis, aninhadas: intercepto e
+    inclinações comuns (A); um intercepto por estado, inclinações comuns (B — é
+    o que significa "estado como variável categórica"); um intercepto e uma
+    inclinação por estado (C — equivale a seis modelos separados). Escolher
+    entre elas é um teste, não uma preferência.</p>
+    <p class="nota">Os dois testes F rejeitam as restrições. B contra A dá
+    F(5, 1778) = 429; C contra B dá F(40, 1738) = 8,9. Ou seja: os estados não
+    diferem apenas de patamar — <b>o mesmo indicador tem efeito diferente em
+    cada um</b>. Seis das oito inclinações variam de forma significativa; só o
+    salário médio e a proporção de eleitores com 60 anos ou mais se mantêm
+    estáveis.</p>
+    <p class="nota">O caso mais nítido é a alfabetização: a inclinação é
+    positiva em São Paulo e negativa nos outros cinco estados. Não é diferença
+    de intensidade, é troca de sinal — uma inclinação comum produziria uma média
+    que não descreve nenhum dos seis. Por isso o estudo mantém as duas visões, e
+    o modelo agrupado deve ser lido como resumo, não como o modelo correto.</p>
+    <p class="nota">A ressalva vale também aqui: o teste F supõe observações
+    independentes, e o I de Moran mostrou que elas não são. O p verdadeiro é
+    maior que o calculado. Neste caso a folga é grande demais para inverter a
+    conclusão, mas a evidência é mais fraca do que os números sugerem.</p>
+
     <h3 style="margin-top:20px">O que o modelo mostrou</h3>
     <p class="nota"><b>O estado importa mais que o município.</b> No modelo
     agrupado, os efeitos fixos de estado sozinhos explicam 65,2% da variância;
@@ -1177,11 +1319,13 @@ function leHash(){
 }
 async function inicia(){
   try{
-    const [resumo,mapa,modelo]=await Promise.all([
+    const [resumo,mapa,modelo,het]=await Promise.all([
       fetch("dados/resumo.json").then(r=>r.json()),
       fetch("dados/mapa_uf.json").then(r=>r.json()),
-      fetch("dados/modelo.json").then(r=>r.json())]);
+      fetch("dados/modelo.json").then(r=>r.json()),
+      fetch("dados/heterogeneidade.json").then(r=>r.json())]);
     estado.resumo=resumo;estado.mapa=mapa;estado.modelo=modelo;
+    estado.heterogeneidade=het;
     montaMapa();montaLista();
     document.getElementById("carregando").classList.add("oculto");
     document.getElementById("data-atualizacao").textContent=

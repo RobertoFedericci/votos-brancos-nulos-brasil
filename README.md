@@ -87,6 +87,46 @@ decidido por ruído numérico. O modelo final usa um conjunto pré-especificado,
 com a composição reduzida a uma variável, e **elastic net** quando se quer
 encolhimento — estável sob colinearidade, ao contrário da busca.
 
+### Um modelo por estado, e por quê
+
+Três especificações aninhadas, comparadas por teste F:
+
+| | Especificação | Parâmetros | SQR |
+|---|---|---|---|
+| A | Intercepto e inclinações comuns | 9 | 124.620 |
+| B | Um intercepto por estado (*estado como variável categórica*) | 14 | 56.448 |
+| C | Um intercepto e uma inclinação por estado (*seis modelos separados*) | 54 | 46.841 |
+
+- **B contra A** — os patamares diferem entre estados: F(5, 1778) = 429, p ≈ 1e−302
+- **C contra B** — as inclinações **também** diferem: F(40, 1738) = 8,9, p ≈ 8e−47
+
+As duas restrições são rejeitadas. Estado como variável categórica dá a cada
+estado o seu próprio patamar, mas impõe **a mesma inclinação a todos** — e os
+dados recusam isso. Seis das oito inclinações variam de forma significativa:
+
+| Indicador | F | p | |
+|---|---|---|---|
+| Eleitoras mulheres | 6,65 | < 0,0001 | varia |
+| log PIB per capita | 6,54 | < 0,0001 | varia |
+| Eleitores com superior | 4,30 | 0,0007 | varia |
+| Eleitores 16-24 | 3,60 | 0,0031 | varia |
+| Alfabetização | 3,27 | 0,0061 | varia |
+| log Densidade | 2,75 | 0,0176 | varia |
+| Salário médio | 1,93 | 0,0859 | estável |
+| Eleitores 60+ | 0,90 | 0,4789 | estável |
+
+O caso mais nítido é a **alfabetização**, cuja inclinação padronizada é
+**+0,058 em São Paulo** e negativa nos outros cinco (−0,101 a −0,181). Não é
+diferença de intensidade: é troca de sinal. Uma inclinação comum produziria uma
+média que não descreve nenhum dos seis estados.
+
+Por isso o estudo publica as duas visões, e o modelo agrupado deve ser lido como
+resumo — não como o modelo correto.
+
+*Ressalva:* o teste F supõe observações independentes, e o I de Moran mostrou
+que elas não são. O p verdadeiro é maior que o calculado; aqui a folga é grande
+demais para inverter a conclusão, mas a evidência é mais fraca que os números.
+
 ### Achados
 
 - **O estado pesa mais que o município.** No modelo agrupado, os efeitos fixos
@@ -144,7 +184,8 @@ O passo de modelagem é o único com dependências externas:
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python scripts/06_modelagem.py   # imprime o relatório e grava modelo.json
+.venv/bin/python scripts/06_modelagem.py       # relatório + modelo.json
+.venv/bin/python scripts/07_heterogeneidade.py # testes F entre estados
 ```
 
 Os scripts são idempotentes e numerados na ordem de execução. Rodá-los do zero
