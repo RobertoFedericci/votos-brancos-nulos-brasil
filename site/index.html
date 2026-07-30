@@ -240,7 +240,7 @@ const NOMES={brancos:"Brancos",nulos:"Nulos",tecnicos:"Nulos técnicos",abstenca
 const UF_ORDEM=["SP","BA","PE","CE","PA","MA"];
 const SVG="http://www.w3.org/2000/svg";
 
-const estado={resumo:null,mapa:null,modelo:null,heterogeneidade:null,
+const estado={resumo:null,mapa:null,modelo:null,heterogeneidade:null,espacial:null,
               uf:null,dados:{},aba:"panorama",
               cargo:"Presidente",ano:"2022"};
 
@@ -1059,6 +1059,89 @@ function painelModelo(){
     f.append(c9);
   }
 
+  // --- correção espacial ---
+  const E=estado.espacial;
+  if(E&&bloco===agrup){
+    const VAR=["HC0 (independência)","Agrupado por microrregião",
+               "Agrupado por região imediata","Conley 100 km","Conley 200 km"];
+    const cA=el("div",{class:"card"},
+      el("h3",{txt:"Erros-padrão que não supõem independência"}),
+      el("p",{class:"nota",txt:
+        `Como os municípios vizinhos erram para o mesmo lado, o erro-padrão `+
+        `usual é otimista. Aqui o mesmo coeficiente aparece sob cinco `+
+        `suposições: independência, agrupamento por `+
+        `${fmt(E.n_micro)} microrregiões, por ${fmt(E.n_imediata)} regiões `+
+        `imediatas, e correlação decaindo com a distância (Conley) a 100 e `+
+        `200 km. A base de comparação é HC0, não HC3 — HC3 corrige `+
+        `alavancagem, e os demais não, então compará-los misturaria dois `+
+        `efeitos distintos.`}));
+    cA.append(tabela(["Variável","Coef."].concat(
+      VAR.map(v=>v.replace(" (independência)","").replace("Agrupado por ","por "))),
+      E.coef.map(c=>[c.var,num(c.beta,3)].concat(
+        VAR.map(v=>num(c.ep[v],4))))));
+    const infl=E.coef.map(c=>c.ep["Agrupado por microrregião"]/c.ep["HC0 (independência)"]);
+    cA.append(el("p",{class:"nota",style:"margin-top:12px",html:
+      `Agrupar altera os erros-padrão por fatores de `+
+      `<b>${num(Math.min(...infl),2)}× a ${num(Math.max(...infl),2)}×</b>, `+
+      `inflando a maioria deles. `+
+      (E.perdem_significancia.length
+        ? `Perdem significância: ${E.perdem_significancia.join(", ")}.`
+        : `<b>Nenhum coeficiente muda de conclusão.</b> A dependência espacial `+
+          `é real, mas neste modelo ela não sustentava nenhum dos resultados: `+
+          `os que eram significativos continuam sendo, e os que não eram `+
+          `continuam não sendo.`)}));
+    f.append(cA);
+
+    const m=E.moran;
+    const cB=el("div",{class:"card"},
+      el("h3",{txt:"Absorver a região, em vez de só corrigir a variância"}),
+      el("p",{class:"nota",txt:
+        `Corrigir o erro-padrão aceita o fator regional como ruído. A `+
+        `alternativa é colocá-lo no modelo: trocar os efeitos fixos de estado `+
+        `por efeitos fixos das ${fmt(m.n_regioes)} regiões imediatas.`}));
+    cB.append(tabela(["Especificação","I de Moran dos resíduos","R²"],[
+      ["Efeitos fixos de estado (6)",num(m.uf,3),num(m.r2_uf,3)],
+      [`Efeitos fixos de região imediata (${fmt(m.n_regioes)})`,
+       num(m.regiao,3),num(m.r2_regiao,3)],
+    ]));
+    cB.append(el("p",{class:"nota",style:"margin-top:12px",html:
+      `O agrupamento espacial dos resíduos cai <b>`+
+      `${num(100*(1-m.regiao/m.uf),0)}%</b> e o R² sobe de `+
+      `${num(m.r2_uf,3)} para <b>${num(m.r2_regiao,3)}</b>. O fator regional `+
+      `que os preditores não captavam tinha nome: é a região imediata. Isso `+
+      `reforça o achado central — o que governa a taxa de branco e nulo de um `+
+      `município é o lugar onde ele está, numa escala ainda mais fina que a `+
+      `do estado.`}));
+    cB.append(el("p",{class:"nota",style:"margin-top:10px",txt:
+      "O resíduo ainda tem alguma estrutura espacial (I = "+num(m.regiao,3)+
+      "), então a região imediata não esgota o fenômeno — apenas explica a "+
+      "maior parte dele."}));
+    f.append(cB);
+
+    const h=E.heterogeneidade_agrupada;
+    const cC=el("div",{class:"card"},
+      el("h3",{txt:"A heterogeneidade entre estados sobrevive à correção?"}),
+      el("p",{class:"nota",txt:
+        "O teste F que rejeitou as inclinações comuns supunha independência. "+
+        "Refeito com variância agrupada por microrregião, ele responde a mesma "+
+        "pergunta sem essa suposição."}));
+    cC.append(el("div",{class:"kpis"},
+      el("div",{class:"kpi"},
+        el("div",{class:"v",txt:"F = "+num(h.F,1)}),
+        el("div",{class:"l",txt:`Wald agrupado, ${h.gl1} e ${h.gl2} graus de liberdade`}),
+        el("div",{class:"d",txt:"p < 0,000001"})),
+      el("div",{class:"kpi"},
+        el("div",{class:"v",txt:"F = 8,9"}),
+        el("div",{class:"l",txt:"teste original, supondo independência"}),
+        el("div",{class:"d",txt:"para comparação"}))));
+    cC.append(el("p",{class:"nota",style:"margin-top:12px",html:
+      "<b>Sobrevive.</b> A conclusão de que cada estado tem o seu próprio "+
+      "conjunto de inclinações não dependia da suposição de independência — "+
+      "o teste agrupado é até mais forte que o original. É por isso que os "+
+      "seis modelos separados continuam de pé."}));
+    f.append(cC);
+  }
+
   // --- elastic net ---
   if(bloco.enet){
     const c6=el("div",{class:"card"},
@@ -1266,8 +1349,33 @@ function painelMetodo(){
     modelo agrupado, p &lt; 0,001, com os oito vizinhos mais próximos). Municípios
     vizinhos erram para o mesmo lado, o que indica um fator regional não
     captado — e torna os erros-padrão otimistas, porque os municípios não são
-    observações independentes. Corrigir isso exigiria um modelo espacial
-    explícito, que está fora do escopo deste estudo.</p>
+    observações independentes.</p>
+
+    <h3 style="margin-top:20px">O que foi feito quanto à dependência espacial</h3>
+    <p class="nota">Os erros-padrão foram recalculados sob quatro suposições
+    alternativas à independência: agrupados por <b>190 microrregiões</b>,
+    agrupados por <b>166 regiões imediatas</b>, e de <b>Conley</b> (correlação
+    decaindo com a distância) a 100 e a 200 km. A base de comparação é HC0, e
+    não HC3: HC3 corrige alavancagem e os demais não, de modo que compará-los
+    misturaria dois efeitos distintos — foi o que quase levou a uma leitura
+    errada durante a análise.</p>
+    <p class="nota">Agrupar altera os erros-padrão por fatores de 0,92× a
+    1,28×, inflando a maioria. <b>Nenhum coeficiente muda de conclusão</b>: os
+    que eram significativos continuam sendo, e os que não eram continuam não
+    sendo. A dependência espacial é real, mas não sustentava nenhum dos
+    resultados relatados.</p>
+    <p class="nota">O teste de heterogeneidade entre estados foi refeito com
+    variância agrupada: F(40, 189) = 11,5, contra os 8,9 do teste original.
+    A conclusão de que cada estado tem o seu próprio conjunto de inclinações
+    não dependia da suposição de independência — o teste corrigido é até mais
+    forte.</p>
+    <p class="nota">Por fim, em vez de apenas corrigir a variância, a região foi
+    <b>absorvida pelo modelo</b>: trocando os efeitos fixos de estado pelos das
+    166 regiões imediatas, o I de Moran dos resíduos cai de 0,294 para 0,075 —
+    <b>75% do agrupamento espacial</b> — e o R² sobe de 0,721 para 0,865. O
+    fator regional não captado tinha nome: é a região imediata. Resta alguma
+    estrutura espacial (I = 0,075), então ela explica a maior parte do
+    fenômeno, não a totalidade.</p>
 
     <h3 style="margin-top:20px">Construção da base</h3>
     <p class="nota">A base do TSE vem em granularidade município × zona × cargo
@@ -1319,13 +1427,14 @@ function leHash(){
 }
 async function inicia(){
   try{
-    const [resumo,mapa,modelo,het]=await Promise.all([
+    const [resumo,mapa,modelo,het,esp]=await Promise.all([
       fetch("dados/resumo.json").then(r=>r.json()),
       fetch("dados/mapa_uf.json").then(r=>r.json()),
       fetch("dados/modelo.json").then(r=>r.json()),
-      fetch("dados/heterogeneidade.json").then(r=>r.json())]);
+      fetch("dados/heterogeneidade.json").then(r=>r.json()),
+      fetch("dados/espacial.json").then(r=>r.json())]);
     estado.resumo=resumo;estado.mapa=mapa;estado.modelo=modelo;
-    estado.heterogeneidade=het;
+    estado.heterogeneidade=het;estado.espacial=esp;
     montaMapa();montaLista();
     document.getElementById("carregando").classList.add("oculto");
     document.getElementById("data-atualizacao").textContent=

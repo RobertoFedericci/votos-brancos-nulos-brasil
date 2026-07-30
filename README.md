@@ -123,9 +123,9 @@ média que não descreve nenhum dos seis estados.
 Por isso o estudo publica as duas visões, e o modelo agrupado deve ser lido como
 resumo — não como o modelo correto.
 
-*Ressalva:* o teste F supõe observações independentes, e o I de Moran mostrou
-que elas não são. O p verdadeiro é maior que o calculado; aqui a folga é grande
-demais para inverter a conclusão, mas a evidência é mais fraca que os números.
+*O teste F acima supõe observações independentes, e o I de Moran mostrou que
+elas não são. Ele foi refeito com variância agrupada por microrregião —
+F(40, 189) = 11,5, mais forte que o original. Ver "A correção espacial".*
 
 ### Achados
 
@@ -142,9 +142,43 @@ demais para inverter a conclusão, mas a evidência é mais fraca que os número
   para importâncias de variáveis — com 144 municípios no Pará, isso seria ruído.
 - **Os resíduos se agrupam no espaço.** I de Moran de +0,29 (p < 0,001, oito
   vizinhos mais próximos) no modelo agrupado, positivo e significativo em quase
-  todos os recortes. Há um fator regional não captado, e os erros-padrão são
-  otimistas — municípios não são observações independentes. Corrigir isso
-  exigiria um modelo espacial explícito, fora do escopo deste estudo.
+  todos os recortes. Há um fator regional não captado, e os erros-padrão usuais
+  são otimistas — municípios não são observações independentes.
+
+### A correção espacial
+
+Os erros-padrão foram recalculados sob quatro alternativas à independência:
+agrupados por **190 microrregiões**, agrupados por **166 regiões imediatas**, e
+de **Conley** (correlação decaindo com a distância) a 100 e a 200 km.
+
+A base de comparação é **HC0, e não HC3** — HC3 corrige alavancagem e os demais
+não, então compará-los mistura dois efeitos distintos. Contra HC3, os erros
+agrupados pareciam *menores*, o que sugeriria ausência de dependência espacial;
+contra HC0 eles são maiores, como esperado. A comparação errada quase inverteu
+a leitura.
+
+- Agrupar altera os erros-padrão por fatores de **0,92× a 1,28×**, inflando a
+  maioria. **Nenhum coeficiente muda de conclusão.** A dependência espacial é
+  real, mas não sustentava nenhum dos resultados relatados.
+- O teste de heterogeneidade entre estados, refeito com variância agrupada, dá
+  **F(40, 189) = 11,5** contra os 8,9 originais — a conclusão não dependia da
+  suposição de independência, e o teste corrigido é mais forte.
+
+### Absorver a região, em vez de só corrigir a variância
+
+Trocando os efeitos fixos de estado pelos das **166 regiões imediatas**:
+
+| Especificação | I de Moran dos resíduos | R² |
+|---|---|---|
+| Efeitos fixos de estado (6) | 0,294 | 0,721 |
+| Efeitos fixos de região imediata (166) | **0,075** | **0,865** |
+
+O agrupamento espacial cai **75%** e o R² sobe 14 pontos. O "fator regional não
+captado" tinha nome: é a região imediata. Isso reforça o achado central — o que
+governa a taxa de branco e nulo de um município é o lugar onde ele está, numa
+escala ainda mais fina que a do estado. Resta alguma estrutura espacial
+(I = 0,075), então a região imediata explica a maior parte do fenômeno, não a
+totalidade.
 
 ### Sobre o R²
 
@@ -186,6 +220,8 @@ O passo de modelagem é o único com dependências externas:
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python scripts/06_modelagem.py       # relatório + modelo.json
 .venv/bin/python scripts/07_heterogeneidade.py # testes F entre estados
+python3 scripts/08_regioes.py                 # microrregiões e regiões imediatas
+.venv/bin/python scripts/09_espacial.py       # erros-padrão espaciais
 ```
 
 Os scripts são idempotentes e numerados na ordem de execução. Rodá-los do zero
