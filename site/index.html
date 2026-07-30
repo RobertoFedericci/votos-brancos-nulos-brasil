@@ -240,7 +240,8 @@ const NOMES={brancos:"Brancos",nulos:"Nulos",tecnicos:"Nulos técnicos",abstenca
 const UF_ORDEM=["SP","BA","PE","CE","PA","MA"];
 const SVG="http://www.w3.org/2000/svg";
 
-const estado={resumo:null,mapa:null,modelo:null,heterogeneidade:null,espacial:null,
+const estado={resumo:null,mapa:null,modelo:null,heterogeneidade:null,
+              espacial:null,filiacao:null,
               uf:null,dados:{},aba:"panorama",
               cargo:"Presidente",ano:"2022"};
 
@@ -1142,6 +1143,54 @@ function painelModelo(){
     f.append(cC);
   }
 
+  // --- hipótese testada e rejeitada ---
+  const FI=estado.filiacao;
+  if(FI&&bloco===agrup){
+    const fi=FI.coef.filter(c=>c.filiacao);
+    const cF=el("div",{class:"card"},
+      el("h3",{txt:"Uma hipótese testada — e rejeitada"}),
+      el("p",{class:"nota",html:
+        `O fator regional não captado sugeria uma explicação: onde a `+
+        `organização política local é densa, o eleitor teria uma estrutura que `+
+        `dá sentido ao voto, e o não-voto cairia. A hipótese foi testada com a `+
+        `<b>filiação partidária</b> do TSE — 6,3 milhões de filiados nos seis `+
+        `estados, mediana de ${num(FI.mediana_por_mil,0)} filiados por mil `+
+        `eleitores.`}));
+    cF.append(tabela(["Indicador de filiação","Coef.","Erro-padrão","p"],
+      fi.map(c=>[c.var,num(c.beta,4),num(c.ep,4),
+        c.p<.0001?"< 0,0001":num(c.p,4)])));
+    cF.append(el("div",{class:"kpis",style:"margin-top:16px"},
+      el("div",{class:"kpi"},
+        el("div",{class:"v",txt:"+"+num(100*(FI.r2_com-FI.r2_sem),1)+" p.p."}),
+        el("div",{class:"l",txt:"ganho de R² ao acrescentar os três indicadores"}),
+        el("div",{class:"d",txt:`${num(FI.r2_sem,3)} → ${num(FI.r2_com,3)}`})),
+      el("div",{class:"kpi"},
+        el("div",{class:"v",txt:num(100*(1-FI.moran_com/FI.moran_sem),1)+"%"}),
+        el("div",{class:"l",txt:"redução do agrupamento espacial dos resíduos"}),
+        el("div",{class:"d",txt:"efeitos de região reduzem 75%"}))));
+    cF.append(el("p",{class:"nota",style:"margin-top:14px",html:
+      `<b>O sinal é o previsto, o tamanho não.</b> A densidade de filiação tem `+
+      `coeficiente negativo e significativo (${num(fi[0].beta,3)}, `+
+      `p = ${num(fi[0].p,4)}): mais filiação, menos não-voto. Mas acrescenta `+
+      `<b>menos de um ponto</b> de R², e sobretudo <b>não toca no fator `+
+      `regional</b> — o I de Moran cai de ${num(FI.moran_sem,3)} para `+
+      `${num(FI.moran_com,3)}, contra a queda de 75% que os efeitos fixos de `+
+      `região produzem. Número de partidos e concentração da filiação não são `+
+      `distinguíveis de zero.`}));
+    cF.append(el("p",{class:"nota",style:"margin-top:10px",html:
+      `No agregado por estado o padrão chega a <b>contrariar</b> a hipótese: `+
+      `São Paulo tem a maior densidade de filiação do recorte (184 por mil, `+
+      `contra 118 em Pernambuco) e mesmo assim a maior taxa de branco e nulo. `+
+      `A hipótese da organização partidária está descartada como explicação do `+
+      `fenômeno regional.`}));
+    cF.append(el("p",{class:"nota",style:"margin-top:10px",txt:
+      `Ressalva de data: o TSE publica o cadastro de filiação como retrato do `+
+      `momento, não como série histórica. O arquivo usado é de junho de 2026 e `+
+      `o desfecho é de 2022. Filiação é um estoque de mudança lenta, mas `+
+      `filiações posteriores a 2022 entram na medida.`}));
+    f.append(cF);
+  }
+
   // --- elastic net ---
   if(bloco.enet){
     const c6=el("div",{class:"card"},
@@ -1377,6 +1426,25 @@ function painelMetodo(){
     estrutura espacial (I = 0,075), então ela explica a maior parte do
     fenômeno, não a totalidade.</p>
 
+    <h3 style="margin-top:20px">Uma hipótese testada e rejeitada</h3>
+    <p class="nota">Se o fator regional fosse densidade de organização política
+    local, a filiação partidária deveria captá-lo. Foi testada com a base do TSE
+    — 6,3 milhões de filiados nos seis estados, mediana de 150 por mil
+    eleitores, em três indicadores: densidade de filiação, número de partidos
+    com filiados e concentração da filiação.</p>
+    <p class="nota">A densidade de filiação tem <b>o sinal previsto</b>
+    (−0,042, p = 0,0016, com erro-padrão agrupado): mais filiação, menos
+    não-voto. Mas o tamanho não sustenta a hipótese. Os três indicadores juntos
+    acrescentam <b>0,8 ponto</b> de R², reduzem o agrupamento espacial dos
+    resíduos em <b>2%</b> (contra 75% dos efeitos fixos de região) e se
+    correlacionam com o resíduo regional a r = −0,06. Número de partidos e
+    concentração não se distinguem de zero.</p>
+    <p class="nota">No agregado por estado o padrão chega a <b>contrariar</b> a
+    hipótese: São Paulo tem a maior densidade de filiação do recorte (184 por
+    mil, contra 118 em Pernambuco) e a maior taxa de branco e nulo. A hipótese
+    está descartada como explicação do fenômeno regional — o efeito municipal
+    existe, é pequeno, e o fator regional segue sem nome.</p>
+
     <h3 style="margin-top:20px">Construção da base</h3>
     <p class="nota">A base do TSE vem em granularidade município × zona × cargo
     e foi somada para município × cargo, mantendo apenas o 1º turno. O
@@ -1427,14 +1495,15 @@ function leHash(){
 }
 async function inicia(){
   try{
-    const [resumo,mapa,modelo,het,esp]=await Promise.all([
+    const [resumo,mapa,modelo,het,esp,fil]=await Promise.all([
       fetch("dados/resumo.json").then(r=>r.json()),
       fetch("dados/mapa_uf.json").then(r=>r.json()),
       fetch("dados/modelo.json").then(r=>r.json()),
       fetch("dados/heterogeneidade.json").then(r=>r.json()),
-      fetch("dados/espacial.json").then(r=>r.json())]);
+      fetch("dados/espacial.json").then(r=>r.json()),
+      fetch("dados/filiacao.json").then(r=>r.json())]);
     estado.resumo=resumo;estado.mapa=mapa;estado.modelo=modelo;
-    estado.heterogeneidade=het;estado.espacial=esp;
+    estado.heterogeneidade=het;estado.espacial=esp;estado.filiacao=fil;
     montaMapa();montaLista();
     document.getElementById("carregando").classList.add("oculto");
     document.getElementById("data-atualizacao").textContent=

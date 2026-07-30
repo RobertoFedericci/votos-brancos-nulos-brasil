@@ -64,7 +64,7 @@ def var_agrupada(X, w, u, pao, grupos):
     for g in np.unique(grupos):
         sg = s[grupos == g].sum(0)
         carne += np.outer(sg, sg)
-    G, n, k = len(np.unique(grupos)), len(y_global), X.shape[1]
+    G, n, k = len(np.unique(grupos)), X.shape[0], X.shape[1]
     c = (G / (G - 1)) * ((n - 1) / (n - k))
     return c * (pao @ carne @ pao)
 
@@ -103,7 +103,6 @@ def moran_knn(res, w, coords, k=8, permutacoes=999):
 
 
 def main():
-    global y_global
     np.random.seed(20260730)
     linhas = base.carrega()
     regioes = json.load(open(os.path.join(PROC, "regioes.json")))
@@ -111,7 +110,7 @@ def main():
     n = len(linhas)
 
     X0 = np.array([[l[v] for v in PRE] for l in linhas], float)
-    y = np.array([l["y"] for l in linhas]); y_global = y
+    y = np.array([l["y"] for l in linhas])
     w = np.array([l["w"] for l in linhas])
     Z = (X0 - X0.mean(0)) / X0.std(0)
     uf = np.array([l["uf"] for l in linhas])

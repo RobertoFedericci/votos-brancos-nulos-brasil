@@ -180,6 +180,38 @@ escala ainda mais fina que a do estado. Resta alguma estrutura espacial
 (I = 0,075), então a região imediata explica a maior parte do fenômeno, não a
 totalidade.
 
+### Uma hipótese testada e rejeitada: filiação partidária
+
+O fator regional sugeria uma explicação: onde a organização política local é
+densa, o eleitor teria uma estrutura que dá sentido ao voto. Testada com a base
+de **filiação partidária do TSE** (6,3 milhões de filiados nos seis estados,
+mediana de 150 por mil eleitores):
+
+| Indicador | Coef. | Erro-padrão | p |
+|---|---|---|---|
+| log Filiados por mil eleitores | −0,0423 | 0,0134 | **0,0016** |
+| Partidos com filiados | −0,0198 | 0,0149 | 0,184 |
+| Concentração da filiação (HHI) | −0,0018 | 0,0096 | 0,853 |
+
+**O sinal é o previsto; o tamanho não.** A densidade de filiação é significativa
+e negativa — mais filiação, menos não-voto — mas:
+
+- acrescenta **+0,8 ponto** de R² (0,721 → 0,729);
+- reduz o agrupamento espacial dos resíduos em **2%** (I de Moran 0,294 → 0,288),
+  contra os 75% que os efeitos fixos de região produzem;
+- correlaciona-se com o resíduo regional a **r = −0,06** (163 regiões).
+
+No agregado por estado o padrão chega a **contrariar** a hipótese: São Paulo tem
+a maior densidade de filiação do recorte (184 por mil, contra 118 em Pernambuco)
+e a maior taxa de branco e nulo.
+
+**Hipótese descartada** como explicação do fenômeno regional. O efeito municipal
+existe, é pequeno, e o fator regional continua sem nome.
+
+*Ressalva de data:* o TSE publica o cadastro de filiação como retrato do
+momento, não como série histórica. O arquivo é de junho de 2026 e o desfecho é
+de 2022; filiações posteriores a 2022 entram na medida.
+
 ### Sobre o R²
 
 É reportado nas versões ponderada e não ponderada. A ponderação é correta para
@@ -195,7 +227,9 @@ estado, e um único bloco de validação cruzada passa a definir a métrica.
 | [IBGE — Censo Demográfico 2022](https://sidra.ibge.gov.br/) | População e densidade (tab. 4714); taxa de alfabetização de 15 anos ou mais (tab. 9543) |
 | [IBGE — PIB dos Municípios 2021](https://sidra.ibge.gov.br/tabela/5938) | PIB per capita municipal |
 | [IBGE — CEMPRE 2021](https://sidra.ibge.gov.br/tabela/1685) | Salário médio mensal, em salários mínimos |
-| [IBGE — Malha territorial](https://servicodados.ibge.gov.br/api/docs/malhas) | Contornos das unidades da federação |
+| [IBGE — Malha territorial](https://servicodados.ibge.gov.br/api/docs/malhas) | Contornos das UFs e centroides municipais |
+| [IBGE — Localidades](https://servicodados.ibge.gov.br/api/docs/localidades) | Microrregiões e regiões imediatas, para os erros-padrão agrupados |
+| [TSE — Perfil Filiação Partidária](https://dadosabertos.tse.jus.br/dataset/delegados-partidarios) | Filiados por município e partido (retrato de junho de 2026) |
 | [Municípios Brasileiros TSE](https://github.com/betafcc/Municipios-Brasileiros-TSE) | Correspondência entre código de município do TSE e do IBGE |
 
 ## Reproduzir
@@ -222,6 +256,8 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python scripts/07_heterogeneidade.py # testes F entre estados
 python3 scripts/08_regioes.py                 # microrregiões e regiões imediatas
 .venv/bin/python scripts/09_espacial.py       # erros-padrão espaciais
+python3 scripts/10_filiacao.py                # agrega filiação (3,5 GB, ~5 min)
+.venv/bin/python scripts/11_teste_filiacao.py # testa a hipótese de filiação
 ```
 
 Os scripts são idempotentes e numerados na ordem de execução. Rodá-los do zero
