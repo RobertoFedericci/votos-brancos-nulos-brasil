@@ -32,6 +32,27 @@ partidos ou resultados de disputa.
 São denominadores diferentes, e por isso as duas medidas nunca aparecem no
 mesmo gráfico.
 
+## O não-voto absoluto
+
+Em **número absoluto** o problema dos denominadores desaparece, e existe uma
+medida que soma tudo:
+
+> **Não-voto** = abstenções + brancos + nulos + nulos técnicos
+> = eleitores aptos que **não produziram voto válido**
+
+A soma é legítima porque quem se absteve e quem votou em branco são **conjuntos
+disjuntos de pessoas**. A identidade contábil confirma: o resultado é
+exatamente igual a `aptos − votos válidos`, verificado em todos os recortes de
+um voto por eleitor.
+
+Exemplo — São Paulo, Presidente 2022: **9.028.593 eleitores**, 26,0% dos
+34.684.927 aptos.
+
+**Exceção: Senado de 2018.** Com duas vagas e dois votos por eleitor, brancos e
+nulos são contados por voto e não por pessoa; somá-los à abstenção contaria
+duas vezes quem anulou apenas uma das cédulas. Nesse recorte o valor aparece
+como indisponível, não como número errado.
+
 ## Por que o cargo é um filtro, e não um tema
 
 Cada eleitor deposita cinco votos numa eleição geral. Somar as categorias entre

@@ -146,6 +146,15 @@ tbody tr:hover td{background:var(--plane)}
   font-variant-numeric:tabular-nums}
 #tt i{width:9px;height:9px;border-radius:2px;display:inline-block;margin-right:5px}
 
+/* Cartão do número absoluto: é a única medida que conta pessoas, e por isso
+   sai do bloco de percentuais. */
+.destaque{border-left:3px solid var(--s2)}
+.destaque-num{font-size:clamp(30px,5vw,44px);font-weight:680;letter-spacing:-.03em;
+  line-height:1.05;color:var(--ink)}
+.destaque-rot{font-size:14.5px;color:var(--ink2);margin-top:8px;max-width:64ch}
+.destaque-rot b{color:var(--ink);font-weight:620}
+.destaque-nota{font-size:12.5px;color:var(--muted);margin-top:9px;max-width:70ch}
+
 .aviso{border-left:2.5px solid var(--s4);background:var(--surface);
   border-radius:0 8px 8px 0;padding:12px 16px;font-size:13px;color:var(--ink2);
   margin-bottom:20px}
@@ -268,7 +277,30 @@ function extrai(d){
     p_brancos:100*brancos/votos, p_nulos:100*nulos/votos,
     p_tecnicos:100*tec/votos, p_bn:100*(brancos+nulos+tec)/votos,
     // Abstenção corre sobre o eleitorado apto, não sobre os votos.
-    p_abstencao:100*abst/aptos};
+    p_abstencao:100*abst/aptos,
+    // Votos por eleitor que compareceu. Vale 1 em quase tudo, e 2 no Senado
+    // de 2018, que renovou duas vagas — é o que invalida a soma absoluta.
+    votos_por_eleitor:comp?votos/comp:1,
+    ...naoVoto(votos,brancos,nulos,tec,abst,aptos,comp)};
+}
+
+/* Não-voto absoluto: eleitores aptos que não produziram voto válido.
+   = abstenções + brancos + nulos + nulos técnicos, que identicamente
+   equivale a aptos − votos válidos.
+
+   Em número absoluto o problema dos denominadores desaparece: quem se
+   absteve e quem votou em branco são conjuntos disjuntos de PESSOAS, e
+   somá-los é legítimo — ao contrário dos percentuais, que correm sobre
+   bases diferentes.
+
+   A exceção é o Senado de 2018: com dois votos por eleitor, brancos e
+   nulos são contados por voto e não por pessoa, e a soma passaria a
+   contar duas vezes quem anulou só uma das cédulas. Nesse caso o valor
+   é nulo em vez de errado. */
+function naoVoto(votos,brancos,nulos,tec,abst,aptos,comp){
+  if(comp&&votos/comp>1.5)return {nao_voto:null,p_nao_voto:null};
+  const nv=abst+brancos+nulos+tec;
+  return {nao_voto:nv,p_nao_voto:aptos?100*nv/aptos:null};
 }
 function totaisUF(uf,cargo,ano){
   const t=(estado.resumo.ufs[uf].totais[cargo]||{})[ano];
@@ -539,6 +571,32 @@ function painelPanorama(){
     kpi("abstencao",at.p_abstencao,"Abstenção, sobre o eleitorado apto",
         ant&&ant.p_abstencao)));
 
+  // Não-voto absoluto: o número de pessoas, destacado do bloco percentual
+  // porque é a única medida aqui que conta gente e não proporção.
+  if(at.nao_voto!=null){
+    const dif=ant&&ant.nao_voto!=null
+      ? `${at.nao_voto-ant.nao_voto>=0?"+":"−"}`+
+        `${fmt(Math.abs(at.nao_voto-ant.nao_voto))} vs ${outro}`
+      : "";
+    f.append(el("div",{class:"card destaque"},
+      el("div",{class:"destaque-num",txt:fmt(at.nao_voto)}),
+      el("div",{class:"destaque-rot",html:
+        `<b>eleitores que não produziram voto válido</b> para ${estado.cargo} `+
+        `em ${estado.ano} — ${num(at.p_nao_voto)}% dos ${fmt(at.aptos)} aptos `+
+        `de ${d.nome}`}),
+      el("div",{class:"destaque-nota",txt:
+        "Abstenções + brancos + nulos + nulos técnicos. São conjuntos "+
+        "disjuntos de pessoas, então em número absoluto a soma é legítima — "+
+        "equivale a eleitores aptos menos votos válidos."+(dif?"  ":"")}),
+      dif?el("div",{class:"destaque-nota",txt:dif}):null));
+  } else {
+    f.append(el("div",{class:"aviso",html:
+      "<b>Não-voto absoluto indisponível para este recorte.</b> O Senado de "+
+      "2018 teve duas vagas e dois votos por eleitor, então brancos e nulos "+
+      "são contados por voto e não por pessoa. Somá-los à abstenção contaria "+
+      "duas vezes quem anulou apenas uma das cédulas."}));
+  }
+
   if(estado.ano==="2018"){
     f.append(el("div",{class:"aviso",html:
       "<b>Nulo técnico em 2018.</b> A base do TSE de 2018 não destaca essa "+
@@ -601,20 +659,29 @@ function painelPanorama(){
 function painelMunicipios(){
   const d=estado.dados[estado.uf];
   const f=document.createDocumentFragment();
-  f.append(el("p",{class:"nota",style:"margin-bottom:14px",txt:
+  f.append(el("p",{class:"nota",style:"margin-bottom:6px",txt:
     `Todos os ${d.municipios.length} municípios de ${d.nome}, para `+
     `${estado.cargo} em ${estado.ano}. Clique num cabeçalho para ordenar.`}));
+  f.append(el("p",{class:"nota",style:"margin-bottom:14px",html:
+    `<b>Não-voto (pessoas)</b> é o número absoluto de eleitores aptos que não `+
+    `produziram voto válido: abstenções + brancos + nulos + nulos técnicos. `+
+    `A tabela abre ordenada por essa coluna.`+
+    (estado.cargo==="Senador"&&estado.ano==="2018"
+      ? ` <b>Indisponível neste recorte</b> — o Senado de 2018 teve dois votos `+
+        `por eleitor, e brancos e nulos são contados por voto, não por pessoa.`
+      : "")}));
   const busca=el("input",{class:"busca",type:"search",
     placeholder:"Filtrar por município…"});
   f.append(busca);
 
   const cols=[
-    ["n","Município","t"],["el","Eleitorado","n"],
+    ["n","Município","t"],["aptos","Eleitorado apto","n"],
+    ["nao_voto","Não-voto (pessoas)","n"],["p_nao_voto","Não-voto %","p"],
     ["p_brancos","Brancos %","p"],["p_nulos","Nulos %","p"],
     ["p_tecnicos","Nulos técn. %","p"],["p_bn","Soma %","p"],
     ["p_abstencao","Abstenção %","p"],["alf","Alfabetização %","p"],
   ];
-  let ordem="p_bn",asc=false,filtro="";
+  let ordem="nao_voto",asc=false,filtro="";
   const env=el("div",{class:"tabela-envolve"});
   const tab=el("table");env.append(tab);f.append(env);
 
@@ -622,7 +689,8 @@ function painelMunicipios(){
     return d.municipios.map(m=>{
       const r=extrai((m.d[estado.cargo]||{})[estado.ano]);
       if(!r||!r.votos)return null;
-      return {n:m.n,el:m.el,alf:m.alf,p_brancos:r.p_brancos,p_nulos:r.p_nulos,
+      return {n:m.n,aptos:r.aptos,nao_voto:r.nao_voto,p_nao_voto:r.p_nao_voto,
+        alf:m.alf,p_brancos:r.p_brancos,p_nulos:r.p_nulos,
         p_tecnicos:r.p_tecnicos,p_bn:r.p_bn,p_abstencao:r.p_abstencao};
     }).filter(Boolean)
       .filter(r=>!filtro||r.n.toLowerCase().includes(filtro))
@@ -693,16 +761,19 @@ function painelComparacao(){
   const env=el("div",{class:"tabela-envolve"});
   const t=el("table");
   t.append(el("thead",{},el("tr",{},
-    ["Estado","Brancos %","Nulos %","Nulos técn. %","Soma %","Abstenção %",
-     "Votos depositados"].map(h=>el("th",{txt:h})))));
+    ["Estado","Eleitorado apto","Não-voto (pessoas)","Não-voto %",
+     "Brancos %","Nulos %","Nulos técn. %","Soma %","Abstenção %"]
+      .map(h=>el("th",{txt:h})))));
   const tb=el("tbody");
   UF_ORDEM.forEach(uf=>{
     const v=totaisUF(uf,estado.cargo,estado.ano);
     if(!v)return;
     tb.append(el("tr",{},[el("td",{txt:estado.resumo.ufs[uf].nome}),
+      el("td",{txt:fmt(v.aptos)}),el("td",{txt:fmt(v.nao_voto)}),
+      el("td",{txt:v.p_nao_voto==null?"—":num(v.p_nao_voto)}),
       el("td",{txt:num(v.p_brancos)}),el("td",{txt:num(v.p_nulos)}),
       el("td",{txt:num(v.p_tecnicos)}),el("td",{txt:num(v.p_bn)}),
-      el("td",{txt:num(v.p_abstencao)}),el("td",{txt:fmt(v.votos)})]));
+      el("td",{txt:num(v.p_abstencao)})]));
   });
   t.append(tb);env.append(t);f.append(env);
   return f;
@@ -1298,6 +1369,23 @@ function painelMetodo(){
     (<code>QT_APTOS</code>), porque quem se abstém não deposita voto algum.
     São denominadores distintos e por isso as duas medidas nunca aparecem no
     mesmo gráfico.</p>
+
+    <h3 style="margin-top:20px">O não-voto absoluto</h3>
+    <p class="nota">Em <b>número absoluto</b> o problema dos denominadores
+    desaparece, e por isso existe uma medida que soma tudo: o
+    <b>não-voto</b> é o número de eleitores aptos que não produziram voto
+    válido — abstenções + brancos + nulos + nulos técnicos. A soma é legítima
+    porque quem se absteve e quem votou em branco são <b>conjuntos disjuntos de
+    pessoas</b>: uma não compareceu, a outra compareceu e não converteu o voto.
+    O percentual é sobre o eleitorado apto.</p>
+    <p class="nota">A identidade contábil confirma a construção: abstenções +
+    brancos + nulos + nulos técnicos é exatamente igual a <b>aptos − votos
+    válidos</b>, e isso confere em todos os recortes de um voto por eleitor.</p>
+    <p class="nota"><b>A exceção é o Senado de 2018.</b> Com duas vagas e dois
+    votos por eleitor, brancos e nulos são contados por voto e não por pessoa,
+    e a soma passaria a contar duas vezes quem anulou apenas uma das cédulas.
+    Nesse recorte o valor aparece como indisponível, em vez de aparecer
+    errado.</p>
 
     <h3 style="margin-top:20px">Por que o cargo é um filtro, e não um tema</h3>
     <p class="nota">Cada eleitor deposita cinco votos numa eleição geral
