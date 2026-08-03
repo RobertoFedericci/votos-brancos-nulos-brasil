@@ -533,10 +533,14 @@ function montaFiltros(){
   fa.onchange=e=>{estado.ano=e.target.value;renderiza();};
   document.getElementById("filtros").style.display=
     (estado.aba==="metodo"||estado.aba==="modelo")?"none":"flex";
+  // A ressalva das duas vagas vale só para 2018. Exibi-la em 2022 fazia
+  // parecer que o Senado inteiro estava sob a ressalva.
   document.getElementById("f-nota").textContent=
-    estado.cargo==="Senador"
+    (estado.cargo==="Senador"&&estado.ano==="2018")
       ?"Em 2018 o Senado renovou duas vagas: cada eleitor depositou dois votos."
-      :"";
+      :(estado.cargo==="Senador"&&estado.ano==="2022")
+        ?"Em 2022 o Senado renovou uma vaga: um voto por eleitor."
+        :"";
 }
 
 /* ---------- painéis ---------- */
@@ -574,10 +578,16 @@ function painelPanorama(){
   // Não-voto absoluto: o número de pessoas, destacado do bloco percentual
   // porque é a única medida aqui que conta gente e não proporção.
   if(at.nao_voto!=null){
+    // Quando o outro ano é o Senado de 2018, não há comparação possível. A
+    // ausência precisa ser dita: os KPIs ao lado mostram "vs 2018", e um
+    // espaço em branco aqui pareceria defeito.
     const dif=ant&&ant.nao_voto!=null
       ? `${at.nao_voto-ant.nao_voto>=0?"+":"−"}`+
         `${fmt(Math.abs(at.nao_voto-ant.nao_voto))} vs ${outro}`
-      : "";
+      : (ant
+         ? `Sem comparação com ${outro}: naquele ano o Senado teve dois votos `+
+           `por eleitor, e o número absoluto não é calculável.`
+         : "");
     f.append(el("div",{class:"card destaque"},
       el("div",{class:"destaque-num",txt:fmt(at.nao_voto)}),
       el("div",{class:"destaque-rot",html:
@@ -659,29 +669,44 @@ function painelPanorama(){
 function painelMunicipios(){
   const d=estado.dados[estado.uf];
   const f=document.createDocumentFragment();
+  // Amostra o primeiro município com dados para saber se o não-voto absoluto
+  // é calculável neste cargo e ano — vale para todos ou para nenhum.
+  const amostra=d.municipios
+    .map(m=>extrai((m.d[estado.cargo]||{})[estado.ano]))
+    .find(r=>r&&r.votos);
+  const temNaoVoto=!!amostra&&amostra.nao_voto!=null;
+
   f.append(el("p",{class:"nota",style:"margin-bottom:6px",txt:
     `Todos os ${d.municipios.length} municípios de ${d.nome}, para `+
     `${estado.cargo} em ${estado.ano}. Clique num cabeçalho para ordenar.`}));
   f.append(el("p",{class:"nota",style:"margin-bottom:14px",html:
-    `<b>Não-voto (pessoas)</b> é o número absoluto de eleitores aptos que não `+
-    `produziram voto válido: abstenções + brancos + nulos + nulos técnicos. `+
-    `A tabela abre ordenada por essa coluna.`+
-    (estado.cargo==="Senador"&&estado.ano==="2018"
-      ? ` <b>Indisponível neste recorte</b> — o Senado de 2018 teve dois votos `+
-        `por eleitor, e brancos e nulos são contados por voto, não por pessoa.`
-      : "")}));
+    temNaoVoto
+      ? `<b>Não-voto (pessoas)</b> é o número absoluto de eleitores aptos que `+
+        `não produziram voto válido: abstenções + brancos + nulos + nulos `+
+        `técnicos. A tabela abre ordenada por essa coluna.`
+      : `<b>As colunas de não-voto absoluto não aparecem neste recorte.</b> O `+
+        `Senado de 2018 teve duas vagas e dois votos por eleitor, então `+
+        `brancos e nulos são contados por voto e não por pessoa — somá-los à `+
+        `abstenção contaria duas vezes quem anulou só uma das cédulas. Os `+
+        `percentuais abaixo continuam válidos; a tabela abre ordenada por `+
+        `<b>Soma %</b>.`}));
   const busca=el("input",{class:"busca",type:"search",
     placeholder:"Filtrar por município…"});
   f.append(busca);
 
+  // Quando o não-voto absoluto não é calculável (Senado 2018), as duas colunas
+  // saem da tabela em vez de virarem duas colunas de traços — que era ruído, e
+  // ainda deixava a ordenação padrão apontando para uma coluna vazia.
   const cols=[
     ["n","Município","t"],["aptos","Eleitorado apto","n"],
-    ["nao_voto","Não-voto (pessoas)","n"],["p_nao_voto","Não-voto %","p"],
+    ...(temNaoVoto
+      ? [["nao_voto","Não-voto (pessoas)","n"],["p_nao_voto","Não-voto %","p"]]
+      : []),
     ["p_brancos","Brancos %","p"],["p_nulos","Nulos %","p"],
     ["p_tecnicos","Nulos técn. %","p"],["p_bn","Soma %","p"],
     ["p_abstencao","Abstenção %","p"],["alf","Alfabetização %","p"],
   ];
-  let ordem="nao_voto",asc=false,filtro="";
+  let ordem=temNaoVoto?"nao_voto":"p_bn",asc=false,filtro="";
   const env=el("div",{class:"tabela-envolve"});
   const tab=el("table");env.append(tab);f.append(env);
 
